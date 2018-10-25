@@ -22,26 +22,18 @@ keyValueStore = {
 module.exports = function (app) {
 
 
-	/* GET keyExists given key method --> returns boolean */
+	/* GET getValue given key method --> returns value for key */
 	app.get('/keyValue-store/:key', (req, res) => {
-		if(keyValueStore.hasKey(req.params.key)) {
-			res.status(200);
-			responseBody.msg = "Updated successfully";
+		res.json({
+			'result': 'Success',
+			'value': keyValueStore.get(req.params.key)	
+		});
 	});
 
 	/* GET getValue given key method --> returns value of the key*/
 	app.get('/keyValue-store/search/:key', (req, res) => {
+
 	});
-
-
-
-
-
-
-
-
-
-
 
 
 	/* put method */
