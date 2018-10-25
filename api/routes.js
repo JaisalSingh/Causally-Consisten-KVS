@@ -19,12 +19,21 @@ keyValueStore = {
 	}
 }
 
-module.exports = function (app) {
+module.exports = function (app, db) {
 
 
-	/* GET hasKey method */
+	/* GET keyExists given key method --> returns boolean */
 	app.get('/keyValue-store/:key', (req, res) => {
+		if(keyValueStore.hasKey(req.params.key)) {
+			res.status(200);
+			responseBody.msg = "Updated successfully";
 	});
+
+	/* GET getValue given key method --> returns value of the key*/
+	app.get('/keyValue-store/search/:key', (req, res) => {
+	});
+
+
 
 
 
@@ -74,8 +83,28 @@ module.exports = function (app) {
 	});
 
 
-
-
+	///* delete method *////
+	app.delete('/keyValue-store/:key', (req, res) => {
+		if(keyValueStore.hasKey(req.param.key)){
+			res.status(200);
+			keyValueStore.remove(req.params.key, req.body.val);
+			/*
+			res.json({
+				'result': 'Success'
+			});
+			*/
+			responseBody.result = "Success"
+		}else{
+			res.status(404);
+			/* res.json({
+				'result': 'Error',
+				'msg': 'Status code 404'
+			}); */
+			responseBody.result = "Failed"
+			responseBody.msg = "Status code 404"
+	}
+	res.json(responseBody);
+	});
 
 
 
@@ -105,53 +134,9 @@ module.exports = function (app) {
 	// 	res.json(responseBody);
 	// });
 
-
-
-
-
-
-
-
-
 	// ///* retyrnKey method *////
 	// app.returnKey('/search', (req, res) => {
 	// });
-
-
-
-
-
-
-
-	///* delete method *////
-	app.delete('/keyValue-store/:key', (req, res) => {
-		if(keyValueStore.hasKey(req.param.key)){
-			res.status(200);
-			keyValueStore.remove(req.params.key, req.body.val);
-			/*
-			res.json({
-				'result': 'Success'
-			});
-			*/
-			responseBody.result = "Success"
-		}else{
-			res.status(404);
-			/* res.json({
-				'result': 'Error',
-				'msg': 'Status code 404'
-			}); */
-			responseBody.result = "Failed"
-			responseBody.msg = "Status code 404"
-	}
-	res.json(responseBody);
-  });
-
-
-
-
-
-
-
 
 
    /* post test method assignment 1 */
