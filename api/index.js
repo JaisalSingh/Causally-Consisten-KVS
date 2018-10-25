@@ -1,5 +1,5 @@
 var routes = require ('./routes.js');
 
-module.exports = function (app, db) {
-	routes(app,db);
+module.exports = function (app) {
+	routes(app);
 }

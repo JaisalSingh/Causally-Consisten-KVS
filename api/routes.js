@@ -19,7 +19,7 @@ keyValueStore = {
 	}
 }
 
-module.exports = function (app, db) {
+module.exports = function (app) {
 
 
 	/* GET keyExists given key method --> returns boolean */
