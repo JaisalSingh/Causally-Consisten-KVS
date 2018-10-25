@@ -1,5 +1,6 @@
 var express = require('express'),
   	app = express(),
+  	request = require('http'),
 	port = process.env.PORT || 8080,
 	bodyParser = require('body-parser');
 
@@ -10,7 +11,7 @@ app.use(bodyParser.json());
 // app.use(bodyParser.json({ limit: '1mb' }));
 // app.use(bodyParser.urlenencoded({ limit: '1mb', extended: true}));
 
-require('./api/') (app, {});
+require('./api/') (app);
 
 app.listen(port);
 

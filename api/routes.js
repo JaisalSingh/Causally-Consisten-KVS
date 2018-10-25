@@ -19,7 +19,7 @@ keyValueStore = {
 	}
 }
 
-module.exports = function (app, db) {
+module.exports = function (app) {
 
 
 	/* GET hasKey method */
