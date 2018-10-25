@@ -1,23 +1,41 @@
+/* CMPS 128 Kev Value Store Assignment 2 */
 
+
+// KVS data structure
+// returns: true if value is successfully updated (changed) else false
 keyValueStore = {
 	store: {},
-	// Returns true if value is successfully updated (changed)
 	set: function (key, value) {
-		// Value isn't changed
 		if(this.hasKey(key) && value == this.store[key])
 			return false;
 		this.store[key] = value;
 		return true;
 	},
-	hasKey: function(key) {
+	hasKey: function(key) { // returns boolean
 		return key in this.store;
 	},
 	get: function (key) {
-		return this.store[key];
+		return this.store[key]; // returns value
 	}
 }
 
 module.exports = function (app, db) {
+
+
+	/* GET hasKey method */
+	app.get('/keyValue-store/:key', (req, res) => {
+	});
+
+
+
+
+
+
+
+
+
+
+	/* put method */
 	app.put('/keyValue-store/:key', (req, res) => {
 		// if(err.statuscode == 413)
 		// 	res.json({
@@ -55,51 +73,57 @@ module.exports = function (app, db) {
 		// res.send('PUT REQUEST RECEIVED');
 	});
 
-	app.post('/test', (req, res) => {
-		res.send('POST message received: ' + req.query.msg);
-	});
 
-	app.post("/hello", function(req, res) {
-		res.status(405).end();
-	});
 
-	app.get('/test', (req, res) => {
-		res.send('GET request received');
-	});
 
-	app.get("/hello", (req, res, next) => { // Why is there next here
-		res.send("Hello world!");
-	});
 
-	app.searchKey('/search', (req, res) => {
-		if(keyValueStore.hasKey(req.param.key)){
-			res.status(200);
-			/*
-			res.json({
-				'result': 'Success',
-				'isExists': 'true'
-			});
-			*/
-			responseBody.result = "Success"
-			responseBody.isExists = "true"
-		}else{
-			res.status(201);
-			/*
-			res.json({
-				'result': 'Error',
-				'isExists': 'false'
-			});
-			*/
-			responseBody.result = "Failed"
-			responseBody.isExists = "false"
-		}
-		res.json(responseBody);
-	});
 
-	app.returnKey('/search', (req, res) => {
 
-	});
+	///* searchKey method *////
+	// app.searchKey('/search', (req, res) => {
+	// 	if(keyValueStore.hasKey(req.param.key)){
+	// 		res.status(200);
+	// 		/*
+	// 		res.json({
+	// 			'result': 'Success',
+	// 			'isExists': 'true'
+	// 		});
+	// 		*/
+	// 		responseBody.result = "Success"
+	// 		responseBody.isExists = "true"
+	// 	}else{
+	// 		res.status(201);
+	// 		/*
+	// 		res.json({
+	// 			'result': 'Error',
+	// 			'isExists': 'false'
+	// 		});
+	// 		*/
+	// 		responseBody.result = "Failed"
+	// 		responseBody.isExists = "false"
+	// 	}
+	// 	res.json(responseBody);
+	// });
 
+
+
+
+
+
+
+
+
+	// ///* retyrnKey method *////
+	// app.returnKey('/search', (req, res) => {
+	// });
+
+
+
+
+
+
+
+	///* delete method *////
 	app.delete('/keyValue-store/:key', (req, res) => {
 		if(keyValueStore.hasKey(req.param.key)){
 			res.status(200);
@@ -120,6 +144,31 @@ module.exports = function (app, db) {
 			responseBody.msg = "Status code 404"
 	}
 	res.json(responseBody);
-);
+  });
+
+
+
+
+
+
+
+
+
+   /* post test method assignment 1 */
+   app.post('/test', (req, res) => {
+   	res.send('POST message received: ' + req.query.msg);
+   });
+	 /* post hello mehthod assignment 1 */
+   app.post("/hello", function(req, res) {
+   	res.status(405).end();
+   });
+   /* get methods test assignment 1 */
+   app.get('/test', (req, res) => {
+   	res.send('GET request received');
+   });
+	 /* get methods hello assignment 1 */
+   app.get("/hello", (req, res, next) => { // Why is there next here
+   	res.send("Hello world!");
+   });
 
 }
