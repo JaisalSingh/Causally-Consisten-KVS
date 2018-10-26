@@ -4,12 +4,17 @@ var express = require('express'),
 	port = process.env.PORT || 8080,
 	bodyParser = require('body-parser');
 
-// Original code
-app.use(bodyParser.urlencoded({ extended: true }));//, limit:"1MB" }));
-app.use(bodyParser.json());
+app.use('/keyValue-store/:key', bodyParser.json({ limit: '1mb' }))
+//app.use(bodyParser.json());
 
-// app.use(bodyParser.json({ limit: '1mb' }));
-// app.use(bodyParser.urlenencoded({ limit: '1mb', extended: true}));
+// Error handling
+app.use(function (err, req, res, next) {
+	if(err.statusCode == 413) // payload too large
+		res.json({
+			'result': 'Error',
+			'msg': 'Object too large. Size limit is 1MB'
+		});
+});
 
 require('./api/') (app);
 

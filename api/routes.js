@@ -1,12 +1,11 @@
-/* CMPS 128 Kev Value Store Assignment 2 */
-// TODO: size limit for PUT /keyValue-store/:key
+/* CMPS 128 Key Value Store Assignment 2 */
 
 // KVS data structure
 keyValueStore = {
 	store: {},
 	// returns: true if value is successfully updated (changed) else false
 	set: function (key, value) {
-		if(this.hasKey(key) && value == this.store[key])
+		if(this.hasKey(key) && value == this.store[key]) // Doesn't work for object equality - not sure if problematic
 			return false;
 		this.store[key] = value;
 		return true;
@@ -36,7 +35,7 @@ module.exports = function (app) {
 		});
 	});
 
-	/* GET getValue given key method --> returns true if KVS contains the given key */
+	/* GET hasKey given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		res.status(200).json({
 			'result': 'Success',
@@ -46,13 +45,6 @@ module.exports = function (app) {
 
 	/* Sets value for given key for KVS */
 	app.put('/keyValue-store/:key', (req, res) => {
-		// if(err.statuscode == 413)
-		// 	res.json({
-		// 		'result': 'Error',
-		// 		'msg': 'Object too large. Size limit is 1MB'
-		// 	});
-		// else
-
 		if(req.params.key.length < 1 || req.params.key.length > 200)
 			res.json({
 				'result': 'Error',
