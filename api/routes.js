@@ -1,10 +1,10 @@
 /* CMPS 128 Kev Value Store Assignment 2 */
-
+// TODO: size limit for PUT /keyValue-store/:key
 
 // KVS data structure
-// returns: true if value is successfully updated (changed) else false
 keyValueStore = {
 	store: {},
+	// returns: true if value is successfully updated (changed) else false
 	set: function (key, value) {
 		if(this.hasKey(key) && value == this.store[key])
 			return false;
@@ -16,30 +16,35 @@ keyValueStore = {
 	},
 	get: function (key) {
 		return this.store[key]; // returns value
+	},
+	// returns: true if the key-value pair was deleted, else false
+	// if the given key does not exist, returns false
+	remove: function (key) {
+		if(!this.hasKey(key))
+			return false;
+		return delete this.store[key] 
 	}
 }
 
 module.exports = function (app, db) {
 
-
-	/* GET getValue given key method --> returns value for key */
+	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
-		res.json({
+		res.status(200).json({
 			'result': 'Success',
 			'value': keyValueStore.get(req.params.key)
 		});
 	});
 
-	/* GET getValue given key method --> returns value of the key*/
+	/* GET getValue given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
-			res.json({
-				'result': 'Success',
-				'value': keyValueStore.hasKey(req.params.key)
-			});
+		res.status(200).json({
+			'result': 'Success',
+			'value': keyValueStore.hasKey(req.params.key) // Not sure if we should return boolean or string here - specs are not clear
+		});
 	});
 
-
-	/* put method */
+	/* Sets value for given key for KVS */
 	app.put('/keyValue-store/:key', (req, res) => {
 		// if(err.statuscode == 413)
 		// 	res.json({
@@ -68,71 +73,23 @@ module.exports = function (app, db) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
-			responseBody.keyValueStore = keyValueStore.store;
 			res.json(responseBody);
 		}
-
-		// console.log(req.body);
-		// keyValueStore[req.params.key] = req.body.val;
-		// res.send('PUT REQUEST RECEIVED');
 	});
 
-
-	///* delete method *////
+	/* Deletes given key-value pair from KVS */
 	app.delete('/keyValue-store/:key', (req, res) => {
-		if(keyValueStore.hasKey(req.param.key)){
-			res.status(200);
-			keyValueStore.remove(req.params.key, req.body.val);
-			/*
-			res.json({
+		if(keyValueStore.remove(req.params.key)) {
+			res.status(200).json({
 				'result': 'Success'
 			});
-			*/
-			responseBody.result = "Success"
-		}else{
-			res.status(404);
-			/* res.json({
+		} else {
+			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Status code 404'
-			}); */
-			responseBody.result = "Failed"
-			responseBody.msg = "Status code 404"
-	}
-	res.json(responseBody);
+			})
+		}
 	});
-
-
-
-	///* searchKey method *////
-	// app.searchKey('/search', (req, res) => {
-	// 	if(keyValueStore.hasKey(req.param.key)){
-	// 		res.status(200);
-	// 		/*
-	// 		res.json({
-	// 			'result': 'Success',
-	// 			'isExists': 'true'
-	// 		});
-	// 		*/
-	// 		responseBody.result = "Success"
-	// 		responseBody.isExists = "true"
-	// 	}else{
-	// 		res.status(201);
-	// 		/*
-	// 		res.json({
-	// 			'result': 'Error',
-	// 			'isExists': 'false'
-	// 		});
-	// 		*/
-	// 		responseBody.result = "Failed"
-	// 		responseBody.isExists = "false"
-	// 	}
-	// 	res.json(responseBody);
-	// });
-
-	// ///* retyrnKey method *////
-	// app.returnKey('/search', (req, res) => {
-	// });
-
 
    /* post test method assignment 1 */
    app.post('/test', (req, res) => {
