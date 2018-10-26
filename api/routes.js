@@ -26,13 +26,16 @@ module.exports = function (app, db) {
 	app.get('/keyValue-store/:key', (req, res) => {
 		res.json({
 			'result': 'Success',
-			'value': keyValueStore.get(req.params.key)	
+			'value': keyValueStore.get(req.params.key)
 		});
 	});
 
 	/* GET getValue given key method --> returns value of the key*/
 	app.get('/keyValue-store/search/:key', (req, res) => {
-
+			res.json({
+				'result': 'Success',
+				'value': keyValueStore.hasKey(req.params.key)
+			});
 	});
 
 
