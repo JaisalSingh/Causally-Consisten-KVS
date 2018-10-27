@@ -21,7 +21,7 @@ keyValueStore = {
 	remove: function (key) {
 		if(!this.hasKey(key))
 			return false;
-		return delete this.store[key] 
+		return delete this.store[key]
 	}
 }
 
