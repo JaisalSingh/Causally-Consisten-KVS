@@ -1,4 +1,5 @@
-rwortiz: created server.js and tested
-jsingh17: created routes.js and tested
-duminguy: created docker container and tested
-grslin: 
+rwortiz: gets and specs testing 
+jsingh17: request forwarding and docker 
+duminguy: puts and specs testing 
+grslin: kvs object, request methods and proxy middleware
+
