@@ -5,8 +5,16 @@ var express = require('express'),
 	bodyParser = require('body-parser'),
 	proxy = require('http-proxy-middleware');
 
-if(process.env.MAINIP != undefined)
-	app.use('**', proxy({target: 'http://' + process.env.MAINIP, changeOrigin: true}))
+if(process.env.MAINIP != undefined) {
+	app.use('**', proxy({target: 'http://' + process.env.MAINIP, changeOrigin: true, onError: function (err, req, res) {
+		res.status(501);
+		res.json({
+			"result": "Error",
+			"msg": "Server unavailable"
+		});
+	}}));
+}
+
 
 app.use('/keyValue-store/:key', bodyParser.json({ limit: '1mb' }))
 //app.use(bodyParser.json());
