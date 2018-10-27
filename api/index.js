@@ -1,11 +1,5 @@
-var mainRoutes = require ('./routes.js');
-var followerRoutes = require ('./follower-routes.js');
+var routes = require ('./routes.js');
 
 module.exports = function (app) {
-	if (process.env.MAINIP == null ){
-		mainRoutes(app);
-	}
-	else {
-		followerRoutes(app); 
-	}
+	routes(app);
 }

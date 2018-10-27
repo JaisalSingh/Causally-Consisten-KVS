@@ -29,6 +29,7 @@ module.exports = function (app) {
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
+		console.log('LEADER GET KEYVALUESTORE');
 		res.status(200).json({
 			'result': 'Success',
 			'value': keyValueStore.get(req.params.key)
