@@ -30,17 +30,27 @@ module.exports = function (app) {
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
 		console.log('LEADER GET KEYVALUESTORE');
-		res.status(200).json({
-			'result': 'Success',
-			'value': keyValueStore.get(req.params.key)
-		});
+		if(keyValueStore.hasKey(req.params.key)){
+			res.status(200).json({
+				'result': 'Success',
+				'value': keyValueStore.get(req.params.key),
+				'payload': '<payload>' /* get payload call */
+			});
+		}else{
+			res.status(404).json({
+				'result': 'Error',
+				'msg': 'Key does not exist',
+				'payload': '<payload>' /* get payload call */
+			});
+		}
 	});
 
 	/* GET hasKey given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		res.status(200).json({
+			'isExists': keyValueStore.hasKey(req.params.key),
 			'result': 'Success',
-			'value': keyValueStore.hasKey(req.params.key) // Not sure if we should return boolean or string here - specs are not clear
+			'payload': '<payload>' /* get payload call */
 		});
 	});
 
@@ -66,6 +76,7 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
+			/* responseBody.payload = get payload call */
 			res.json(responseBody);
 		}
 	});
@@ -74,12 +85,15 @@ module.exports = function (app) {
 	app.delete('/keyValue-store/:key', (req, res) => {
 		if(keyValueStore.remove(req.params.key)) {
 			res.status(200).json({
-				'result': 'Success'
+				'result': 'Success',
+				'msg': 'Key deleted',
+				'payload': '<payload>' /* get payload call */
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
-				'msg': 'Status code 404'
+				'msg': 'Key does not exist',
+				'payload': '<payload>' /* get payload call */
 			})
 		}
 	});
