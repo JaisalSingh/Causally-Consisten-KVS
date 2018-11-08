@@ -23,7 +23,48 @@ keyValueStore = {
 			return false;
 		return delete this.store[key]
 	}
-}
+};
+
+// Feel free to rewrite as needed
+
+// Wrapper object for the view
+// TODO: add methods for adding and deleting from the view list
+view = {
+	// Initialize the view as the list specified in environment variables 
+	// v should always match the keys of the vectorClock.vc object
+	v: process.env.VIEW.split(",")
+
+};
+
+// Wrapper object for the host's vector clock
+// HAVEN'T TESTED VERY THOROUGHLY
+vectorClock = {
+	vc: {},
+
+	// Creates the vector clock as an object with a property for each ip in view
+	create: function (view) {
+		view.forEach(function(ip) {
+			this.vc[ip] = 0;	
+		}, this) 
+	},
+
+	// Increments the clock for this host
+	incrementClock: function () {
+		this.vc[process.env.IP_PORT]++;
+	},
+
+	// Returns true if this vector clock is greater than the given clock 
+	greaterThan: function (clock) {
+		for(var ip in this.vc) {
+			if(this.vc[ip] < clock[ip])
+				return false;
+		}
+		return true;
+	}
+};
+
+// Initializes the vector clock with the view
+vectorClock.create(view.v);
 
 module.exports = function (app) {
 
@@ -98,21 +139,10 @@ module.exports = function (app) {
 		}
 	});
 
-   /* post test method assignment 1 */
-   app.post('/test', (req, res) => {
-   	res.send('POST message received: ' + req.query.msg);
-   });
-	 /* post hello mehthod assignment 1 */
-   app.post("/hello", function(req, res) {
-   	res.status(405).end();
-   });
-   /* get methods test assignment 1 */
-   app.get('/test', (req, res) => {
-   	res.send('GET request received');
-   });
-	 /* get methods hello assignment 1 */
-   app.get("/hello", (req, res, next) => { // Why is there next here
-   	res.send("Hello world!");
-   });
+	// Increments the host's clock and returns the current vector clock
+   	app.get('/test', (req, res) => {
+		vectorClock.incrementClock();
+		res.send(JSON.stringify(vectorClock.vc));
+   	});
 
 }
