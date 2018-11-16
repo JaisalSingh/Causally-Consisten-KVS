@@ -5,8 +5,8 @@ var express = require('express'),
 	bodyParser = require('body-parser');
 
 
-app.use('/keyValue-store/:key', bodyParser.json({ limit: '1mb' }))
-//app.use(bodyParser.json());
+//app.use('/keyValue-store/:key', bodyParser.json({ limit: '1mb' }))
+app.use(bodyParser.json());
 
 // Error handling
 app.use(function (err, req, res, next) {

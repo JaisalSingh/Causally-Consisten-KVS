@@ -39,6 +39,15 @@ vectorClock = {
 		return true;
 	},
 
+	// Removes a node from the view
+	// Returns false if node doesn't already exist
+	removeNode: function (ip) {
+		if(!ip in this.vc)
+			return false;
+		delete this.vc[ip];
+		return true;
+	},
+
 	// Returns the string representation of the view
 	view: function () {
 		return Object.keys(vectorClock.vc).join(",");
@@ -75,14 +84,13 @@ module.exports = function (app) {
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
-		console.log('LEADER GET KEYVALUESTORE');
 		if(keyValueStore.hasKey(req.params.key)){
 			res.status(200).json({
 				'result': 'Success',
 				'value': keyValueStore.get(req.params.key),
 				'payload': '<payload>' /* req.body(payload) */
 			});
-		}else{
+		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
@@ -97,14 +105,6 @@ module.exports = function (app) {
 			'isExists': keyValueStore.hasKey(req.params.key),
 			'result': 'Success',
 			'payload': '<payload>' /* req.body(payload) */
-		});
-	});
-
-	/* GET method for view */
-	/* return a comma separated list of all ip-ports run by containers */
-	app.get('/view', (req, res) => {
-		res.status(200).json({
-			'view': '<IP-PORT>'
 		});
 	});
 
@@ -130,27 +130,8 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
-			responseBody.payload = req.body(payload);
 			res.json(responseBody);
 		}
-	});
-
-	/* PUT method for view */
-	/* Tell container to initiate a view change such that all containers */
-	/* add the new containers ip port <NewIPPort> to their views */
-	/* If container is already in view, return error message */
-	app.put('/view', (req, res) => {
-		/* if() {
-			res.status(200).json({
-				'result': 'Success',
-				'msg': 'Successfully added ' + req.body(ip_port) + ' to view'
-			});
-		} else {
-			res.status(404).json({
-				'result': 'Error',
-				'msg': req.body(ip_port) + ' is already in view'
-			});
-		} */
 	});
 
 	/* Deletes given key-value pair from KVS */
@@ -170,34 +151,60 @@ module.exports = function (app) {
 		}
 	});
 
+
+	/* 
+	 View routes ------------------------------------------------------- 
+     TODO: put and delete should forward requests to other nodes in view
+	*/
+	
+	/* GET method for view */
+	/* return a comma separated list of all ip-ports run by containers */
+	app.get('/view', (req, res) => {
+		res.status(200).json({
+			'view': vectorClock.view()
+		});
+	});
+
+	/* PUT method for view */
+	/* Tell container to initiate a view change such that all containers */
+	/* add the new containers ip port <NewIPPort> to their views */
+	/* If container is already in view, return error message */
+	app.put('/view', (req, res) => {
+		if(vectorClock.addNode(req.body.ip_port)) {
+			res.status(200).json({
+				'result': 'Success',
+				'msg': 'Successfully added ' + req.body.ip_port + ' to view'
+			});
+		} else {
+			res.status(404).json({
+				'result': 'Error',
+				'msg': req.body.ip_port + ' is already in view'
+			});
+		}
+	});
+
 	/* DELETE method for view */
 	/* Tell container to initiate a view change such that all containers */
 	/* add the new containers ip port <RemovedIPPort> to their views */
 	/* If container is already in view, return error message */
 	app.delete('/view', (req, res) => {
-		/* if() {
+		if(vectorClock.removeNode(req.body.ip_port)) {
 			res.status(200).json({
 				'result': 'Success',
-				'msg': 'Successfully removed ' + req.body(ip_port) + ' from view'
+				'msg': 'Successfully removed ' + req.body.ip_port + ' from view'
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
-				'msg': req.body(ip_port) + ' is not in current view'
+				'msg': req.body.ip_port + ' is not in current view'
 			});
-		} */
-	});
-
-	app.get('/view', (req, res) => {
-		res.status(200).json({
-			'view': vectorClock.view()
-		})
+		}
 	});
 
 	// Increments the host's clock and returns the current vector clock
-  app.get('/test', (req, res) => {
+	app.get('/test', (req, res) => {
 		vectorClock.incrementClock();
 		res.send(JSON.stringify(vectorClock.vc));
-  });
+	});
 
 }
