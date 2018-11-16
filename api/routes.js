@@ -130,7 +130,7 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
-			responseBody.payload = req.body(payload)
+			responseBody.payload = req.body(payload);
 			res.json(responseBody);
 		}
 	});
@@ -143,12 +143,12 @@ module.exports = function (app) {
 		/* if() {
 			res.status(200).json({
 				'result': 'Success',
-				'msg': 'Successfully added ' + req.body(id_port) + ' to view'
+				'msg': 'Successfully added ' + req.body(ip_port) + ' to view'
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
-				'msg': req.body(id_port) + ' is already in view'
+				'msg': req.body(ip_port) + ' is already in view'
 			});
 		} */
 	});
@@ -178,12 +178,12 @@ module.exports = function (app) {
 		/* if() {
 			res.status(200).json({
 				'result': 'Success',
-				'msg': 'Successfully removed ' + req.body(id_port) + ' from view'
+				'msg': 'Successfully removed ' + req.body(ip_port) + ' from view'
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
-				'msg': req.body(id_port) + ' is not in current view'
+				'msg': req.body(ip_port) + ' is not in current view'
 			});
 		} */
 	});
