@@ -49,7 +49,7 @@ vectorClock = {
 		this.vc[process.env.IP_PORT]++;
 	},
 
-	// Returns true if this vector clock is greater than the given clock 
+	// Returns true if this vector clock is greater than the given clock
 	greaterThan: function (clock) {
 		for(var ip in this.vc) {
 			if(this.vc[ip] < clock[ip])
@@ -80,13 +80,13 @@ module.exports = function (app) {
 			res.status(200).json({
 				'result': 'Success',
 				'value': keyValueStore.get(req.params.key),
-				'payload': '<payload>' /* get payload call */
+				'payload': '<payload>' /* req.body(payload) */
 			});
 		}else{
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': '<payload>' /* get payload call */
+				'payload': '<payload>' /* req.body(payload) */
 			});
 		}
 	});
@@ -96,7 +96,15 @@ module.exports = function (app) {
 		res.status(200).json({
 			'isExists': keyValueStore.hasKey(req.params.key),
 			'result': 'Success',
-			'payload': '<payload>' /* get payload call */
+			'payload': '<payload>' /* req.body(payload) */
+		});
+	});
+
+	/* GET method for view */
+	/* return a comma separated list of all ip-ports run by containers */
+	app.get('/view', (req, res) => {
+		res.status(200).json({
+			'view': '<IP-PORT>'
 		});
 	});
 
@@ -122,9 +130,27 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
-			/* responseBody.payload = get payload call */
+			responseBody.payload = req.body(payload)
 			res.json(responseBody);
 		}
+	});
+
+	/* PUT method for view */
+	/* Tell container to initiate a view change such that all containers */
+	/* add the new containers ip port <NewIPPort> to their views */
+	/* If container is already in view, return error message */
+	app.put('/view', (req, res) => {
+		/* if() {
+			res.status(200).json({
+				'result': 'Success',
+				'msg': 'Successfully added ' + req.body(id_port) + ' to view'
+			});
+		} else {
+			res.status(404).json({
+				'result': 'Error',
+				'msg': req.body(id_port) + ' is already in view'
+			});
+		} */
 	});
 
 	/* Deletes given key-value pair from KVS */
@@ -133,15 +159,33 @@ module.exports = function (app) {
 			res.status(200).json({
 				'result': 'Success',
 				'msg': 'Key deleted',
-				'payload': '<payload>' /* get payload call */
+				'payload': '<payload>' /* req.body(payload) */
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': '<payload>' /* get payload call */
-			})
+				'payload': '<payload>' /* req.body(payload) */
+			});
 		}
+	});
+
+	/* DELETE method for view */
+	/* Tell container to initiate a view change such that all containers */
+	/* add the new containers ip port <RemovedIPPort> to their views */
+	/* If container is already in view, return error message */
+	app.delete('/view', (req, res) => {
+		/* if() {
+			res.status(200).json({
+				'result': 'Success',
+				'msg': 'Successfully removed ' + req.body(id_port) + ' from view'
+			});
+		} else {
+			res.status(404).json({
+				'result': 'Error',
+				'msg': req.body(id_port) + ' is not in current view'
+			});
+		} */
 	});
 
 	app.get('/view', (req, res) => {
@@ -151,9 +195,9 @@ module.exports = function (app) {
 	});
 
 	// Increments the host's clock and returns the current vector clock
-   	app.get('/test', (req, res) => {
+  app.get('/test', (req, res) => {
 		vectorClock.incrementClock();
 		res.send(JSON.stringify(vectorClock.vc));
-   	});
+  });
 
 }
