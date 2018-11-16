@@ -1,3 +1,5 @@
+# last updated: 11/10/18 - fixed the expected result of GET view
+
 import os
 import sys
 import requests
@@ -29,7 +31,7 @@ def getViewString(view):
     for instance in view:
         listOStrings.append(instance["testScriptAddress"])
 
-    return listOStrings
+    return ",".join(listOStrings)
 
 # Basic Functionality
 # These are the endpoints we should be able to hit
@@ -387,9 +389,11 @@ class TestHW3(unittest.TestCase):
         newView = "%s:%s"%(hostIp, newPort)
 
         viewSting = getViewString(self.view)
-        viewSting.append(newView)
+        #viewSting.append(newView)
+        viewSting += ",%s"%newView
 
-        newNode = dc.spinUpDockerContainer(dockerBuildTag, hostIp, newPort, ",".join(viewSting))
+        #newNode = dc.spinUpDockerContainer(dockerBuildTag, hostIp, newPort, ",".join(viewSting))
+        newNode = dc.spinUpDockerContainer(dockerBuildTag, hostIp, newPort, viewSting)
 
         self.view.append(newNode)
 
