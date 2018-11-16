@@ -1,5 +1,7 @@
 /* CMPS 128 Key Value Store Assignment 2 */
 
+var request = require('request-promise');
+
 // KVS data structure
 keyValueStore = {
 	store: {},
@@ -154,7 +156,6 @@ module.exports = function (app) {
 
 	/* 
 	 View routes ------------------------------------------------------- 
-     TODO: put and delete should forward requests to other nodes in view
 	*/
 	
 	/* GET method for view */
@@ -170,17 +171,32 @@ module.exports = function (app) {
 	/* add the new containers ip port <NewIPPort> to their views */
 	/* If container is already in view, return error message */
 	app.put('/view', (req, res) => {
-		if(vectorClock.addNode(req.body.ip_port)) {
-			res.status(200).json({
-				'result': 'Success',
-				'msg': 'Successfully added ' + req.body.ip_port + ' to view'
-			});
-		} else {
-			res.status(404).json({
-				'result': 'Error',
-				'msg': req.body.ip_port + ' is already in view'
-			});
-		}
+		Promise.all(Object.keys(vectorClock.vc).map(function (ip) {
+			if(!('forward' in req.body) && ip != process.env.IP_PORT) {
+				request({
+					method: 'PUT',
+					uri: 'http://' + ip + '/view',
+					body: {
+						forward: false,
+						ip_port: req.body.ip_port
+					},
+					json: true
+				});
+			}
+		})).then( function (values) {
+			// It's not ideal but assumes that adding was successful for the other nodes as well
+			if(vectorClock.addNode(req.body.ip_port)) {
+				res.status(200).json({
+					'result': 'Success',
+					'msg': 'Successfully added ' + req.body.ip_port + ' to view'
+				});
+			} else {
+				res.status(404).json({
+					'result': 'Error',
+					'msg': req.body.ip_port + ' is already in view'
+				});
+			}
+		});
 	});
 
 	/* DELETE method for view */
@@ -188,23 +204,32 @@ module.exports = function (app) {
 	/* add the new containers ip port <RemovedIPPort> to their views */
 	/* If container is already in view, return error message */
 	app.delete('/view', (req, res) => {
-		if(vectorClock.removeNode(req.body.ip_port)) {
-			res.status(200).json({
-				'result': 'Success',
-				'msg': 'Successfully removed ' + req.body.ip_port + ' from view'
-			});
-		} else {
-			res.status(404).json({
-				'result': 'Error',
-				'msg': req.body.ip_port + ' is not in current view'
-			});
-		}
-	});
-
-	// Increments the host's clock and returns the current vector clock
-	app.get('/test', (req, res) => {
-		vectorClock.incrementClock();
-		res.send(JSON.stringify(vectorClock.vc));
+		Promise.all(Object.keys(vectorClock.vc).map(function (ip) {
+			if(!('forward' in req.body) && ip != process.env.IP_PORT) {
+				request({
+					method: 'DELETE',
+					uri: 'http://' + ip + '/view',
+					body: {
+						forward: false,
+						ip_port: req.body.ip_port
+					},
+					json: true
+				});
+			}
+		})).then( function (values) {
+			// It's not ideal but assumes that deleting was successful for the other nodes as well
+			if(vectorClock.removeNode(req.body.ip_port)) {
+				res.status(200).json({
+					'result': 'Success',
+					'msg': 'Successfully removed ' + req.body.ip_port + ' from view'
+				});
+			} else {
+				res.status(404).json({
+					'result': 'Error',
+					'msg': req.body.ip_port + ' is not in current view'
+				});
+			}
+		});
 	});
 
 }

@@ -1,6 +1,6 @@
 var express = require('express'),
   	app = express(),
-  	request = require('http'),
+  	http = require('http'),
 	port = process.env.PORT || 8080,
 	bodyParser = require('body-parser');
 
