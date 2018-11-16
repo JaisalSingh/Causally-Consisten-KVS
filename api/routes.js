@@ -25,27 +25,23 @@ keyValueStore = {
 	}
 };
 
-// Feel free to rewrite as needed
-
-// Wrapper object for the view
-// TODO: add methods for adding and deleting from the view list
-view = {
-	// Initialize the view as the list specified in environment variables 
-	// v should always match the keys of the vectorClock.vc object
-	v: process.env.VIEW.split(",")
-
-};
-
 // Wrapper object for the host's vector clock
 // HAVEN'T TESTED VERY THOROUGHLY
 vectorClock = {
 	vc: {},
 
-	// Creates the vector clock as an object with a property for each ip in view
-	create: function (view) {
-		view.forEach(function(ip) {
-			this.vc[ip] = 0;	
-		}, this) 
+	// Adds a node to the view
+	// Returns false if node already exists
+	addNode: function (ip) {
+		if(ip in this.vc)
+			return false;
+		this.vc[ip] = 0;
+		return true;
+	},
+
+	// Returns the string representation of the view
+	view: function () {
+		return Object.keys(vectorClock.vc).join(",");
 	},
 
 	// Increments the clock for this host
@@ -71,7 +67,9 @@ vectorClock = {
 };
 
 // Initializes the vector clock with the view
-vectorClock.create(view.v);
+process.env.VIEW.split(",").forEach(function (ip) {
+	vectorClock.addNode(ip)
+});
 
 module.exports = function (app) {
 
@@ -144,6 +142,12 @@ module.exports = function (app) {
 				'payload': '<payload>' /* get payload call */
 			})
 		}
+	});
+
+	app.get('/view', (req, res) => {
+		res.status(200).json({
+			'view': vectorClock.view()
+		})
 	});
 
 	// Increments the host's clock and returns the current vector clock
