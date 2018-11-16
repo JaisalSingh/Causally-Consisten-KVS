@@ -2,18 +2,7 @@ var express = require('express'),
   	app = express(),
   	request = require('http'),
 	port = process.env.PORT || 8080,
-	bodyParser = require('body-parser'),
-	proxy = require('http-proxy-middleware');
-
-if(process.env.MAINIP != undefined) {
-	app.use('**', proxy({target: 'http://' + process.env.MAINIP, changeOrigin: true, onError: function (err, req, res) {
-		res.status(501);
-		res.json({
-			"result": "Error",
-			"msg": "Server unavailable"
-		});
-	}}));
-}
+	bodyParser = require('body-parser');
 
 
 app.use('/keyValue-store/:key', bodyParser.json({ limit: '1mb' }))
