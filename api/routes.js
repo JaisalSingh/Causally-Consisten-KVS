@@ -60,6 +60,13 @@ vectorClock = {
 				return false;
 		}
 		return true;
+	},
+
+	// Sets the vector clock to the pairwise-max with the given clock
+	pairwiseMax: function (clock) {
+		for(var ip in this.vc) {
+			this.vc[ip] = Math.max(this.vc[ip], clock[ip]);
+		}
 	}
 };
 
