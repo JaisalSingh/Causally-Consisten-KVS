@@ -83,13 +83,14 @@ Node = {
 		
 		console.log(vectorClock.view());
 		ip = this.findNode();
-		console.log(ip);
+		console.log('My ip is: ' + process.env.IP_PORT);
+		console.log('Connecting to :' + ip);
 		request.post({
 			url: 'http://' +ip+'/gossip',
 			json: true,
 			body: keyValueStore.store
 		}, function(err, res, body) {
-			console.log(body);
+			console.log('body: ' + body);
 		});
 
 
@@ -107,11 +108,12 @@ Node = {
 		ipTable = []
 
 		for(var ip in vectorClock.vc) {
+			if (process.env.IP_PORT != ip)
 			ipTable.push(ip);
 		}
 
-		// console.log('ipTable: ' +ipTable);
-		index = getRandomInt(0,Object.keys(vectorClock.vc).length - 1);
+		console.log('ipTable: ' +ipTable);
+		index = getRandomInt(0,Object.keys(ipTable).length - 1);
 		console.log ('Random Num: ' + index);
 
 		return ipTable[index];
