@@ -75,7 +75,48 @@ vectorClock = {
 			this.vc[ip] = Math.max(this.vc[ip], clock[ip]);
 		}
 	}
+
 };
+
+Node = {
+	gossip: function() {
+		
+		console.log(vectorClock.view());
+		ip = this.findNode();
+		console.log(ip);
+		request.post({
+			url: 'http://' +ip+'/gossip',
+			json: true,
+			body: keyValueStore.store
+		}, function(err, res, body) {
+			console.log(body);
+		});
+
+
+	},
+
+	findNode : function () {
+		/* Helper function to generate random number */
+		function getRandomInt(min,max) {
+			min = Math.ceil(min);
+			max = Math.floor(max);
+			return Math.floor(Math.random() * (max - min + 1) + min);
+		}
+
+		/* Create an array with ip's mapped to a num */
+		ipTable = []
+
+		for(var ip in vectorClock.vc) {
+			ipTable.push(ip);
+		}
+
+		// console.log('ipTable: ' +ipTable);
+		index = getRandomInt(0,Object.keys(vectorClock.vc).length - 1);
+		console.log ('Random Num: ' + index);
+
+		return ipTable[index];
+	}
+}
 
 // Initializes the vector clock with the view
 process.env.VIEW.split(",").forEach(function (ip) {
@@ -232,4 +273,7 @@ module.exports = function (app) {
 		});
 	});
 
+	setInterval(function() {Node.gossip()}, 500);
+
+	
 }
