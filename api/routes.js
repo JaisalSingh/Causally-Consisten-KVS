@@ -71,6 +71,11 @@ class Node {
 		return delete this.kvs[key];
 	}
 
+	// Returns the payload
+	getPayload (key) {
+		return this.kvs[key].vc;
+	}
+
 	/* Node communication methods --------------------------- */
 
 	// Returns the view of this node
@@ -106,7 +111,7 @@ class Node {
 				vc: this.vc.clock,
 				kvs: this.kvs
 			}
-		}, (err, res, body) => 
+		}, (err, res, body) =>
 			this.reconcile(body.vc, body.kvs)
 		);
 	}
@@ -137,7 +142,7 @@ module.exports = function (app) {
 		console.log(req.body);
 		node.reconcile(req.body.vc, req.body.kvs);
 		res.json({
-			vc: node.vc.clock, 
+			vc: node.vc.clock,
 			kvs: node.store
 		});
 	});
@@ -148,13 +153,13 @@ module.exports = function (app) {
 			res.status(200).json({
 				'result': 'Success',
 				'value': node.getValue(req.params.key),
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': node.getPayload(req.params.key)
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': node.getPayload(req.params.key)
 			});
 		}
 	});
@@ -164,7 +169,7 @@ module.exports = function (app) {
 		res.status(200).json({
 			'isExists': node.hasKey(req.params.key),
 			'result': 'Success',
-			'payload': '<payload>' /* req.body(payload) */
+			'payload': node.getPayload(req.params.key)
 		});
 	});
 
@@ -190,6 +195,7 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
+			responseBody.payload = 'payload': node.getPayload(req.params.key);
 			res.json(responseBody);
 		}
 	});
@@ -200,22 +206,22 @@ module.exports = function (app) {
 			res.status(200).json({
 				'result': 'Success',
 				'msg': 'Key deleted',
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': node.getPayload(req.params.key)
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': node.getPayload(req.params.key)
 			});
 		}
 	});
 
 
-	/* 
-	 View routes ------------------------------------------------------- 
+	/*
+	 View routes -------------------------------------------------------
 	*/
-	
+
 	/* GET method for view */
 	/* return a comma separated list of all ip-ports run by containers */
 	app.get('/view', (req, res) => {
@@ -292,5 +298,5 @@ module.exports = function (app) {
 
 	setInterval(function() {node.gossip()}, 2000);
 
-	
+
 }
