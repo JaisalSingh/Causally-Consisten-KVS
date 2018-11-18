@@ -80,17 +80,15 @@ vectorClock = {
 
 Node = {
 	gossip: function() {
-		
-		console.log(vectorClock.view());
 		ip = this.findNode();
-		console.log('My ip is: ' + process.env.IP_PORT);
-		console.log('Connecting to :' + ip);
+		console.log("gossiping with " + ip);
 		request.post({
 			url: 'http://' +ip+'/gossip',
 			json: true,
 			body: keyValueStore.store
 		}, function(err, res, body) {
-			console.log('body: ' + body);
+			// The recieving node will respond with its own KVS
+			// Reconcile with this node's KVS
 		});
 
 
@@ -101,7 +99,7 @@ Node = {
 		function getRandomInt(min,max) {
 			min = Math.ceil(min);
 			max = Math.floor(max);
-			return Math.floor(Math.random() * (max - min + 1) + min);
+			return Math.floor(Math.random() * (max - min)) + min;
 		}
 
 		/* Create an array with ip's mapped to a num */
@@ -109,13 +107,10 @@ Node = {
 
 		for(var ip in vectorClock.vc) {
 			if (process.env.IP_PORT != ip)
-			ipTable.push(ip);
+				ipTable.push(ip);
 		}
 
-		console.log('ipTable: ' +ipTable);
-		index = getRandomInt(0,Object.keys(ipTable).length - 1);
-		console.log ('Random Num: ' + index);
-
+		index = getRandomInt(0,Object.keys(ipTable).length);
 		return ipTable[index];
 	}
 }
@@ -126,6 +121,12 @@ process.env.VIEW.split(",").forEach(function (ip) {
 });
 
 module.exports = function (app) {
+
+	app.post('/gossip', (req, res) => {
+		console.log("Recieved a gossip");
+		console.log(req.body);
+		res.end();
+	});
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
