@@ -7,30 +7,21 @@ class VectorClock {
 		this.clock = {};
 	}
 
-	// Increments the clock for this host
-	incrementClock () {
-		this.clock[process.env.IP_PORT]++;
-	}
-
-	// Returns true if this vector clock is greater than the given clock
-	greaterThan (clock) {
-		for(var ip in this.clock) {
-			if(this.clock[ip] < clock[ip])
-				return false;
-		}
-		return true;
-	}
-
-	// Returns true if this vector clock is strightly smaller than the given clock
-	lessThan (clock) {
+	// Returns true if a is casaully dominated by b
+	static greaterThan(a, b) {
 		var result = false;
-		for(var ip in this.clock) {
-			if(clock[ip] < this.clock[ip])
+		for(var ip in a) {
+			if(b[ip] < a[ip])
 				return false;
-			else if(clock[ip] > this.clock[ip])
+			else if(b[ip] > a[ip])
 				result = true;
 		}
 		return result;
+	}
+
+	// Increments the clock for this host
+	incrementClock () {
+		this.clock[process.env.IP_PORT]++;
 	}
 
 	// Sets the vector clock to the pairwise-max with the given clock
@@ -115,11 +106,9 @@ class Node {
 				vc: this.vc.clock,
 				kvs: this.kvs
 			}
-		}, function(err, res, body) {
-			// The recieving node will respond with its own KVS
-			// Reconcile with this node's KVS
-			// console.log(body);
-		});
+		}, (err, res, body) => 
+			this.reconcile(body.vc, body.kvs)
+		);
 	}
 
 	findRandomNode () {
@@ -132,7 +121,7 @@ class Node {
 	}
 
 	reconcile (clock, kvs) {
-		if(this.vc.lessThan(clock)) {
+		if(VectorClock.greaterThan(this.vc.clock, clock)) {
 			this.kvs = kvs;
 		}
 	}
@@ -300,12 +289,6 @@ module.exports = function (app) {
 			}
 		});
 	});
-
-	// Test method to increment vector clock
-	app.put('/vectorClock/add', (req, res) => {
-		node.vc.incrementClock();
-		res.json(node.vc.clock);
-	})
 
 	setInterval(function() {node.gossip()}, 2000);
 
