@@ -2,47 +2,6 @@
 
 var request = require('request-promise');
 
-// KVS data structure
-// {
-//     key: {
-// 	       value: "the actual value for the key",
-// 		   timestamp: "the time at write",
-// 		   vectorclock: "the node's vector clock at write time"
-// 	   }
-// }
-class KeyValueStore {
-	constructor() {
-		this.store = {};
-	}
-
-	hasKey (key) {
-		return key in this.store;
-	}
-
-	// Returns true if the key is new
-	setValue (key, value, clock) {
-		var result = this.hasKey(key);
-		this.store[key] = {
-			value: value,
-			vc: Object.assign({}, clock),
-			timestamp: Date.now()
-		}
-		return result;
-	}
-
-	// Get key for given value
-	getValue (key) {
-		return this.store[key].value;
-	}
-
-	// Returns true if key-value pair was removed
-	removeKey (key) {
-		if(!this.hasKey(key))
-			return false;
-		return delete this.store[key];
-	}
-}
-
 class VectorClock {
 	constructor () {
 		this.clock = {};
@@ -62,6 +21,18 @@ class VectorClock {
 		return true;
 	}
 
+	// Returns true if this vector clock is strightly smaller than the given clock
+	lessThan (clock) {
+		var result = false;
+		for(var ip in this.clock) {
+			if(clock[ip] < this.clock[ip])
+				return false;
+			else if(clock[ip] > this.clock[ip])
+				result = true;
+		}
+		return result;
+	}
+
 	// Sets the vector clock to the pairwise-max with the given clock
 	pairwiseMax (clock) {
 		for(var ip in this.clock) {
@@ -72,12 +43,44 @@ class VectorClock {
 
 class Node {
 	constructor(view) {
-		this.kvs = new KeyValueStore();
+		this.kvs = {};
 		this.vc = new VectorClock(view);
 		view.split(",").forEach((ip) =>
 			this.addNode(ip)
 		);
 	}
+
+	/* KVS methods ------------------------------------------ */
+
+	hasKey (key) {
+		return key in this.kvs;
+	}
+
+	// Returns true if the key is new
+	setValue (key, value) {
+		var result = this.hasKey(key);
+		this.vc.incrementClock();
+		this.kvs[key] = {
+			value: value,
+			vc: Object.assign({}, this.vc.clock),
+			timestamp: Date.now()
+		}
+		return result;
+	}
+
+	// Get key for given value
+	getValue (key) {
+		return this.kvs[key].value;
+	}
+
+	// Returns true if key-value pair was removed
+	removeKey (key) {
+		if(!this.hasKey(key))
+			return false;
+		return delete this.kvs[key];
+	}
+
+	/* Node communication methods --------------------------- */
 
 	// Returns the view of this node
 	view () {
@@ -110,11 +113,12 @@ class Node {
 			json: true,
 			body: {
 				vc: this.vc.clock,
-				kvs: this.kvs.store
+				kvs: this.kvs
 			}
 		}, function(err, res, body) {
 			// The recieving node will respond with its own KVS
 			// Reconcile with this node's KVS
+			// console.log(body);
 		});
 	}
 
@@ -126,6 +130,12 @@ class Node {
 
 		return ipTable[Math.floor(Math.random() * ipTable.length)];
 	}
+
+	reconcile (clock, kvs) {
+		if(this.vc.lessThan(clock)) {
+			this.kvs = kvs;
+		}
+	}
 }
 
 // Initializes the vector clock with the view
@@ -134,17 +144,21 @@ node = new Node(process.env.VIEW);
 module.exports = function (app) {
 
 	app.post('/gossip', (req, res) => {
-		console.log("Recieved a gossip:");
+		console.log("Recieved:");
 		console.log(req.body);
-		res.json();
+		node.reconcile(req.body.vc, req.body.kvs);
+		res.json({
+			vc: node.vc.clock, 
+			kvs: node.store
+		});
 	});
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
-		if(node.kvs.hasKey(req.params.key)){
+		if(node.hasKey(req.params.key)){
 			res.status(200).json({
 				'result': 'Success',
-				'value': node.kvs.getValue(req.params.key),
+				'value': node.getValue(req.params.key),
 				'payload': '<payload>' /* req.body(payload) */
 			});
 		} else {
@@ -159,7 +173,7 @@ module.exports = function (app) {
 	/* GET hasKey given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		res.status(200).json({
-			'isExists': node.kvs.hasKey(req.params.key),
+			'isExists': node.hasKey(req.params.key),
 			'result': 'Success',
 			'payload': '<payload>' /* req.body(payload) */
 		});
@@ -174,15 +188,15 @@ module.exports = function (app) {
 			});
 		else {
 			var responseBody = {};
-			if(node.kvs.hasKey(req.params.key)) {
+			if(node.hasKey(req.params.key)) {
 				res.status(200);
 				responseBody.msg = "Updated successfully";
-				if(node.kvs.setValue(req.params.key, req.body.val, node.vc.clock))
+				if(node.setValue(req.params.key, req.body.val))
 					responseBody.replaced = "True";
 				else
 					responseBody.replaced = "False";
 			} else {
-				node.kvs.setValue(req.params.key, req.body.val, node.vc.clock);
+				node.setValue(req.params.key, req.body.val);
 				res.status(201);
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
@@ -193,7 +207,7 @@ module.exports = function (app) {
 
 	/* Deletes given key-value pair from KVS */
 	app.delete('/keyValue-store/:key', (req, res) => {
-		if(node.kvs.removeKey(req.params.key)) {
+		if(node.removeKey(req.params.key)) {
 			res.status(200).json({
 				'result': 'Success',
 				'msg': 'Key deleted',
@@ -293,7 +307,7 @@ module.exports = function (app) {
 		res.json(node.vc.clock);
 	})
 
-	setInterval(function() {node.gossip()}, 1000);
+	setInterval(function() {node.gossip()}, 2000);
 
 	
 }
