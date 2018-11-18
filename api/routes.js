@@ -3,20 +3,31 @@
 var request = require('request-promise');
 
 // KVS data structure
+// {
+// 	key: {
+// 		value: "data",
+// 		timestamp: "time",
+// 		vectorclock: "vectorclock"
+// 	}
+// }
 keyValueStore = {
 	store: {},
 	// returns: true if value is successfully updated (changed) else false
 	set: function (key, value) {
-		if(this.hasKey(key) && value == this.store[key]) // Doesn't work for object equality - not sure if problematic
+		if(this.hasKey(key) && value == this.store[key].value) // Doesn't work for object equality - not sure if problematic
 			return false;
-		this.store[key] = value;
+		this.store[key] = {
+			value: value,
+			vc: Object.assign({}, vectorClock.vc),
+			timestamp: Date.now()
+		}
 		return true;
 	},
 	hasKey: function(key) { // returns boolean
 		return key in this.store;
 	},
 	get: function (key) {
-		return this.store[key]; // returns value
+		return this.store[key].value; // returns value
 	},
 	// returns: true if the key-value pair was deleted, else false
 	// if the given key does not exist, returns false
@@ -81,7 +92,7 @@ vectorClock = {
 Node = {
 	gossip: function() {
 		ip = this.findNode();
-		console.log("gossiping with " + ip);
+		console.log("Initiating gossip with " + ip);
 		request.post({
 			url: 'http://' +ip+'/gossip',
 			json: true,
@@ -276,7 +287,13 @@ module.exports = function (app) {
 		});
 	});
 
-	setInterval(function() {Node.gossip()}, 500);
+	// Test method to increment vector clock
+	app.put('/vectorClock/add', (req, res) => {
+		vectorClock.incrementClock();
+		res.json(vectorClock.vc);
+	})
+
+	setInterval(function() {Node.gossip()}, 1000);
 
 	
 }
