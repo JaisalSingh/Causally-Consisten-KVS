@@ -33,7 +33,11 @@ keyValueStore = {
 	remove: function (key) {
 		if(!this.hasKey(key))
 			return false;
-		return delete this.store[key]
+		return delete this.store[key];
+	},
+	// returns the payload
+	payload: function (key) {
+		return this.store[key].vc; // returns vector clock
 	}
 };
 
@@ -144,13 +148,13 @@ module.exports = function (app) {
 			res.status(200).json({
 				'result': 'Success',
 				'value': keyValueStore.get(req.params.key),
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': keyValueStore.payload(req.params.key)
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': keyValueStore.payload(req.params.key)
 			});
 		}
 	});
@@ -160,7 +164,7 @@ module.exports = function (app) {
 		res.status(200).json({
 			'isExists': keyValueStore.hasKey(req.params.key),
 			'result': 'Success',
-			'payload': '<payload>' /* req.body(payload) */
+			'payload': keyValueStore.payload(req.params.key)
 		});
 	});
 
@@ -186,6 +190,7 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
+			responseBody.payload = keyValueStore.payload(req.params.key);
 			res.json(responseBody);
 		}
 	});
@@ -196,22 +201,22 @@ module.exports = function (app) {
 			res.status(200).json({
 				'result': 'Success',
 				'msg': 'Key deleted',
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': keyValueStore.payload(req.params.key)
 			});
 		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': '<payload>' /* req.body(payload) */
+				'payload': keyValueStore.payload(req.params.key)
 			});
 		}
 	});
 
 
-	/* 
-	 View routes ------------------------------------------------------- 
+	/*
+	 View routes -------------------------------------------------------
 	*/
-	
+
 	/* GET method for view */
 	/* return a comma separated list of all ip-ports run by containers */
 	app.get('/view', (req, res) => {
@@ -294,5 +299,5 @@ module.exports = function (app) {
 
 	setInterval(function() {Node.gossip()}, 1000);
 
-	
+
 }
