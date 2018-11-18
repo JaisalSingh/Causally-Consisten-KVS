@@ -14,14 +14,13 @@ keyValueStore = {
 	store: {},
 	// returns: true if value is successfully updated (changed) else false
 	set: function (key, value) {
-		if(this.hasKey(key) && value == this.store[key].value) // Doesn't work for object equality - not sure if problematic
-			return false;
+		var result = this.hasKey(key);
 		this.store[key] = {
 			value: value,
 			vc: Object.assign({}, vectorClock.vc),
 			timestamp: Date.now()
 		}
-		return true;
+		return result;
 	},
 	hasKey: function(key) { // returns boolean
 		return key in this.store;
@@ -136,7 +135,7 @@ module.exports = function (app) {
 	app.post('/gossip', (req, res) => {
 		console.log("Recieved a gossip");
 		console.log(req.body);
-		res.end();
+		res.json(vecto);
 	});
 
 	/* GET getValue given key method --> returns value for given key */
