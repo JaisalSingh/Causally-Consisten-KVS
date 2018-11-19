@@ -39,6 +39,7 @@ class Node {
 		view.split(",").forEach((ip) =>
 			this.addNode(ip)
 		);
+		this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
 	/* KVS methods ------------------------------------------ */
@@ -111,8 +112,10 @@ class Node {
 				vc: this.vc.clock,
 				kvs: this.kvs
 			}
-		}, (err, res, body) =>
-			this.reconcile(body.vc, body.kvs)
+		}, (err, res, body) => {
+				if(!err)
+					this.reconcile(body.vc, body.kvs)
+			}
 		);
 	}
 
@@ -126,9 +129,47 @@ class Node {
 	}
 
 	reconcile (clock, kvs) {
+		// compare vector clocks first
 		if(VectorClock.greaterThan(this.vc.clock, clock)) {
 			this.kvs = kvs;
 		}
+
+		// if incomparable then do on a key by key basis
+		for (var key in this.kvs ) {
+
+			// if the key isn't in the other kvs 
+			// add to the other kvs 
+			if (!(key in kvs)) {
+				kvs[key] = this.kvs[key];
+			}
+			else { // compare and take the later value
+				if (kvs[key].vc.greaterThan(this.kvs[key].vc) ) 
+				{
+					// this kvs is greater than kvs of other node
+					this.kvs[key] = kvs[key];
+				}
+				else if (this.kvs[key].vc.greaterThan(kvs[key].vc) )
+				{
+					// this kvs is less than kvs of other node
+					kvs[key] = this.kvs[key];
+				}
+				else // vc are incomparable 
+				{
+					var thisTime = new Date (this.kvs[key].timestamp);
+					var otherTime = new Date (kvs[key].timestamp);
+
+					// compare timestamps 
+					if (thisTime > otherTime ) {
+						kvs[key]= this.kvs[key];
+					}
+					else 
+					{
+						this.kvs[key] = kvs[key];
+					}
+				}
+			}
+		}
+
 	}
 }
 
@@ -195,7 +236,7 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
-			responseBody.payload = 'payload': node.getPayload(req.params.key);
+			responseBody.payload = node.getPayload(req.params.key);
 			res.json(responseBody);
 		}
 	});
@@ -295,8 +336,4 @@ module.exports = function (app) {
 			}
 		});
 	});
-
-	setInterval(function() {node.gossip()}, 2000);
-
-
 }
