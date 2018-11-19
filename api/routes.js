@@ -39,6 +39,7 @@ class Node {
 		view.split(",").forEach((ip) =>
 			this.addNode(ip)
 		);
+		this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
 	/* KVS methods ------------------------------------------ */
@@ -111,8 +112,10 @@ class Node {
 				vc: this.vc.clock,
 				kvs: this.kvs
 			}
-		}, (err, res, body) =>
-			this.reconcile(body.vc, body.kvs)
+		}, (err, res, body) => {
+				if(!err)
+					this.reconcile(body.vc, body.kvs)
+			}
 		);
 	}
 
@@ -195,7 +198,7 @@ module.exports = function (app) {
 				responseBody.replaced = "False";
 				responseBody.msg = "Added successfully";
 			}
-			responseBody.payload = 'payload': node.getPayload(req.params.key);
+			responseBody.payload = node.getPayload(req.params.key);
 			res.json(responseBody);
 		}
 	});
@@ -295,8 +298,4 @@ module.exports = function (app) {
 			}
 		});
 	});
-
-	setInterval(function() {node.gossip()}, 2000);
-
-
 }
