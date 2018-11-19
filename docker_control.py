@@ -3,6 +3,8 @@
 # Mostly called from hw3_test.py to start containers
 # can be used from command line (largely for testing specific executions by hand)
 
+#last update: 11/17/18 - altered to use subnets, because Linux and Mac need them
+#                      - also will spin up multiple containers from comand line at once now
 
 import subprocess
 import os
@@ -13,29 +15,44 @@ import argparse
 class docker_controller:
     sudo = []
     spinUpTime = 5
+    verbose = False
 
-    def __init__(self, needSudo=False):
+    def __init__(self,mynet, needSudo=False):
+        self.mynet = mynet
         if needSudo:
             self.sudo = ["sudo"]
+
+    def dPrint(self, string, printIt, indentation=0):
+        if printIt:
+            print("%s%s"%("\t"*indentation, string))
 
     def buildDockerImage(self, tag):
         subprocess.run(self.sudo+["docker", "build", "-t", tag, "."])
 
-    def spinUpDockerContainerNoWait(self, tag, hostIp, port, view):
+    def spinUpDockerContainerNoWait(self, tag, hostIp, networkIP, port, view):
         #print("spinning docker container: %s:%s"%(hostIp, port))
 
-        
-        instance = {"testScriptAddress":hostIp+":"+port}
 
-        instance["containerID"] = subprocess.getoutput(self.sudo+["docker", "run", 
-                        "-p", "%s:8080"%port, 
-                        "-e", "VIEW=%s"%view, 
-                        "-e", "IP_PORT=%s:%s"%(hostIp, port), 
+        instance = {"testScriptAddress":hostIp+":"+port,
+                    "networkIpPortAddress": networkIP+":8080"}
+
+        instance["containerID"] = subprocess.getoutput(self.sudo+["docker", "run",
+                        "-p", "%s:8080"%port,
+                        "--net=%s"%self.mynet,
+                        "--ip=%s"%networkIP,
+                        "-e", "VIEW=%s"%view,
+                        "-e", "IP_PORT=%s:8080"%networkIP,
                         "-d", tag])
+
+        if " " in instance["containerID"]:
+            print(instance["containerID"])
+
+        self.dPrint(instance["containerID"], self.verbose, 1)
+
         return instance
 
-    def spinUpDockerContainer(self, tag, hostIp, port, view):
-        instance = self.spinUpDockerContainerNoWait(tag, hostIp, port, view)
+    def spinUpDockerContainer(self, tag, hostIp, networkIP, port, view):
+        instance = self.spinUpDockerContainerNoWait(tag, hostIp, networkIP, port, view)
 
         time.sleep(self.spinUpTime)
 
@@ -43,21 +60,24 @@ class docker_controller:
 
         return instance
 
-    def spinUpManyContainers(self, tag, host_ip, port_prefix, number):
+    def spinUpManyContainers(self, tag, host_ip, network_ip_prefix, port_prefix, number):
         view = []
         for i in range(2, 2+number):
-            view.append( "%s:%s%s"%(host_ip, port_prefix,i) )
+            view.append( "%s%s:%s0"%(network_ip_prefix, i, port_prefix) )
 
         viewString = ",".join(view)
         view = []
         for i in range(2, 2+number):
-            view.append(self.spinUpDockerContainerNoWait(tag, host_ip, port_prefix+str(i), viewString))
+            view.append(self.spinUpDockerContainerNoWait(tag, host_ip, network_ip_prefix+str(i), port_prefix+str(i), viewString))
 
         time.sleep(self.spinUpTime)
 
         #print("completed spinning docker containers")
 
         return view
+
+    def partitionContainer(self, instance):
+        output = subprocess.getoutput(self.sudo + ["docker", "network", "connect", ])
 
     def cleanUpDockerContainer(self, instance=None):
         if instance == None:
@@ -67,28 +87,59 @@ class docker_controller:
             instance = instance.split("\n")
 
             for inst in instance:
-                subprocess.run(self.sudo+["docker", "kill", inst])
+                output = subprocess.getoutput(self.sudo+["docker", "kill", inst])
+                self.dPrint(output, self.verbose, 1)
 
         else:
             #print("cleaning up container %s"%instance)
 
-            subprocess.run(self.sudo+["docker", "kill", instance])
+            output = subprocess.getoutput(self.sudo+["docker", "kill", instance])
+
+            self.dPrint(output, self.verbose, 1)
 
         #print("done cleaning")
 
 if __name__ == '__main__':
     #change these variables to change default values
-    standardPort = "8080"
-    standardIP   = "176.32.164.10"
+    standardPortPrefix = "808"
+    standardIP   = "localhost"
+    standardNetworkIPPrefix = "192.168.0."
     standardBuildTag = "testing"
+    standardNetworkName = "mynetwork"
 
     parser = argparse.ArgumentParser(description='docker controller')
-    parser.add_argument('-K', dest="is_kill_mode", action="store_true", help="kill all docker containers that are running")
-    parser.add_argument('-B', dest="is_build_mode", action="store_true", help="build a docker image")
-    parser.add_argument('-S', dest="is_start_mode", action="store_true", help="start up a docker container")
-    parser.add_argument('-t', dest="buildTag", default=standardBuildTag, help="set the build tag. If unset, tag will be: %s"%standardBuildTag)
-    parser.add_argument('-port', dest="localPort", default=standardPort, help="set the port to start your container on. Only used with -S. If unset will be: %s"%standardPort)
-    parser.add_argument('-hostIp', dest="hostIp", default=standardIP, help="set the ip to start your container on. Only used with -S. If unset will be: %s"%standardIP)
+    parser.add_argument('-K', dest="is_kill_mode", action="store_true",
+        help="kill all docker containers that are running")
+
+    parser.add_argument('-B', dest="is_build_mode", action="store_true",
+        help="build a docker image")
+
+    parser.add_argument('-S', dest="is_start_mode", action="store_true",
+        help="start up a docker container")
+
+    parser.add_argument('-t', dest="buildTag", default=standardBuildTag,
+        help="set the build tag. If unset, tag will be: %s"%standardBuildTag)
+
+    parser.add_argument('-n', dest="number", default=1,
+        help="set number of containers to start. If unset, only one will start")
+
+    parser.add_argument('--port', dest="localPortPrefix", default=standardPortPrefix,
+        help="set the port to start your container on. Only used with -S. If unset will be: %s"%standardPortPrefix)
+
+    parser.add_argument('--hostIp', dest="hostIp", default=standardIP,
+        help="set the ip of your host machine. This is the address you should send curl requests to."\
+        +" Only used with -S. If unset will be: %s"%standardIP)
+
+    parser.add_argument('--networkIP', dest="networkIpPrefix", default=standardNetworkIPPrefix,
+        help="set the ip prefix of your network (everything up to the last period). This is the begining of the address your "\
+        + "containers will use to talk to each other. Only used with -S. If unset will be: %s"%standardNetworkIPPrefix)
+
+    parser.add_argument('--net', dest="network", default=standardNetworkName,
+        help="the name of your network. Only used with -S. If unset will be: %s"%standardNetworkName)
+
+    parser.add_argument('-v', dest="verbose_mode", action="store_true",
+        help="print everything docker would print normally")
+
 
     args = parser.parse_args()
 
@@ -96,17 +147,23 @@ if __name__ == '__main__':
     build = args.is_build_mode
     start = args.is_start_mode
 
+    verbose = args.verbose_mode
+
     dockerBuildTag = args.buildTag
-    localPort = args.localPort
+    containerNumber = int(args.number)
+    localPortPrefix = args.localPortPrefix
     hostIp = args.hostIp
+    networkIpPrefix = args.networkIpPrefix
+    networkName = args.network
 
 
-    dc = docker_controller()
+    dc = docker_controller(networkName)
+    dc.verbose = verbose
 
     if kill:
         dc.cleanUpDockerContainer()
     if build:
         dc.buildDockerImage(dockerBuildTag)
     if start:
-        dc.spinUpDockerContainer(dockerBuildTag, hostIp, localPort, "%s:8082,%s:8083"%(hostIp, hostIp))
-    
+        dc.spinUpManyContainers(dockerBuildTag, hostIp, networkIpPrefix, localPortPrefix, containerNumber)
+        
