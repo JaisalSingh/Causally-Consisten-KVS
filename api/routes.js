@@ -30,6 +30,12 @@ class VectorClock {
 			this.clock[ip] = Math.max(this.clock[ip], clock[ip]);
 		}
 	}
+
+	copyClock (clock) {
+		for(var ip in this.clock) {
+			this.clock[ip] = clock[ip];
+		}
+	}
 }
 
 class Node {
@@ -107,7 +113,6 @@ class Node {
 	// Gossips with a random node
 	gossip () {
 		var ip = this.findRandomNode();
-		// console.log("Initiating gossip with " + ip);
 		request.post({
 			url: 'http://' +ip+'/gossip',
 			json: true,
@@ -118,7 +123,8 @@ class Node {
 		}, (err, res, body) => {
 				if(!err) {
 					this.kvs = body.kvs;
-					this.vc.clock = body.vc;
+					this.vc.copyClock(body.vc);
+					// this.vc.clock = body.vc;
 				}
 			}
 		);
@@ -301,6 +307,8 @@ module.exports = function (app) {
 	/* add the new containers ip port <RemovedIPPort> to their views */
 	/* If container is already in view, return error message */
 	app.delete('/view', (req, res) => {
+		if(req.body.ip_port == process.env.IP_PORT)
+			node.vc.clock = {};
 		Promise.all(node.view().map(function (ip) {
 			if(!('forward' in req.body) && ip != process.env.IP_PORT) {
 				request({
