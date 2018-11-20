@@ -191,23 +191,20 @@ module.exports = function (app) {
 		if(node.hasKey(req.params.key)){
 	    var updatedLoad = node.getPayload(req.params.key);
 	    var largeKey = false;
-	    if (!VectorClock.greaterThan(req.body.payload, updatedLoad)) {
-	      updatedLoad = req.body.payload;
-	      largeKey = true;
-	    }
-	    if (largeKey) {
-	       res.status(200).json({
-	        'result': 'Success',
-	        'value': node.getValue(req.params.key),
-	        'payload': updatedLoad
-	       });
+	    if (!VectorClock.greaterThan(updatedLoad, req.body.payload)) {
+				node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
+				res.status(200).json({
+				 'result': 'Success',
+				 'value': node.getValue(req.params.key),
+				 'payload': node.vc.clock
+				});
 	    } else {
-	      res.status(200).json({
+				res.status(200).json({
 	        'result': 'Success',
 	        'value': node.getValue(req.params.key),
 	        'payload': 'payload is too old; larger than key vector and something may have been written to key'
 	      });
-	    }
+			}
 	  } else {
 	    res.status(404).json({
 	      'result': 'Error',
@@ -222,7 +219,7 @@ module.exports = function (app) {
 		// node.vc.incrementClock(); doesnt work yet
 		var updatedLoad = node.getPayload(req.params.key);
 	  var largeKey = false;
-	  if (!VectorClock.greaterThan(req.body.payload, updatedLoad)) {
+	  if (VectorClock.greaterThan(req.body.payload, updatedLoad)) {
 	    updatedLoad = req.body.payload;
 	    largeKey = true;
 	  }
@@ -263,7 +260,7 @@ module.exports = function (app) {
 				responseBody.replaced = false;
 				responseBody.msg = "Added successfully";
 			}
-			responseBody.payload = node.getPayload(req.params.key);
+			responseBody.payload = req.body.payload;
 			res.json(responseBody);
 		}
 	});
