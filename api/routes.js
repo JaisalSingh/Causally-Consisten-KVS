@@ -7,7 +7,7 @@ class VectorClock {
 		this.clock = {};
 	}
 
-	// Returns true if a is casaully dominated by b
+	// Returns true if a is causally dominated by b
 	static greaterThan(a, b) {
 		var result = false;
 		for(var ip in a) {
@@ -30,6 +30,12 @@ class VectorClock {
 			this.clock[ip] = Math.max(this.clock[ip], clock[ip]);
 		}
 	}
+
+	copyClock (clock) {
+		for(var ip in this.clock) {
+			this.clock[ip] = clock[ip];
+		}
+	}
 }
 
 class Node {
@@ -45,7 +51,7 @@ class Node {
 	/* KVS methods ------------------------------------------ */
 
 	hasKey (key) {
-		return key in this.kvs;
+		return (key in this.kvs) && (this.kvs[key].value != undefined);
 	}
 
 	// Returns true if the key is new
@@ -62,6 +68,7 @@ class Node {
 
 	// Get key for given value
 	getValue (key) {
+		this.kvs[key].vc = Object.assign({}, this.vc.clock);
 		return this.kvs[key].value;
 	}
 
@@ -69,12 +76,14 @@ class Node {
 	removeKey (key) {
 		if(!this.hasKey(key))
 			return false;
-		return delete this.kvs[key];
+		return delete this.kvs[key].value;
 	}
 
 	// Returns the payload
 	getPayload (key) {
-		return this.kvs[key].vc;
+		if(key in this.kvs)
+			return this.kvs[key].vc;
+		return this.vc.clock;
 	}
 
 	/* Node communication methods --------------------------- */
@@ -104,7 +113,6 @@ class Node {
 	// Gossips with a random node
 	gossip () {
 		var ip = this.findRandomNode();
-		console.log("Initiating gossip with " + ip);
 		request.post({
 			url: 'http://' +ip+'/gossip',
 			json: true,
@@ -113,8 +121,11 @@ class Node {
 				kvs: this.kvs
 			}
 		}, (err, res, body) => {
-				if(!err)
-					this.reconcile(body.vc, body.kvs)
+				if(!err) {
+					this.kvs = body.kvs;
+					this.vc.copyClock(body.vc);
+					// this.vc.clock = body.vc;
+				}
 			}
 		);
 	}
@@ -132,44 +143,30 @@ class Node {
 		// compare vector clocks first
 		if(VectorClock.greaterThan(this.vc.clock, clock)) {
 			this.kvs = kvs;
-		}
-
-		// if incomparable then do on a key by key basis
-		for (var key in this.kvs ) {
-
-			// if the key isn't in the other kvs 
-			// add to the other kvs 
-			if (!(key in kvs)) {
-				kvs[key] = this.kvs[key];
-			}
-			else { // compare and take the later value
-				if (kvs[key].vc.greaterThan(this.kvs[key].vc) ) 
-				{
-					// this kvs is greater than kvs of other node
+		} else {
+			// If incomparable then do on a key by key basis
+			for (var key in kvs) { 
+				// If the kvs recieved has keys this node does not, just copy
+				if (!(key in this.kvs)) {
 					this.kvs[key] = kvs[key];
 				}
-				else if (this.kvs[key].vc.greaterThan(kvs[key].vc) )
-				{
-					// this kvs is less than kvs of other node
-					kvs[key] = this.kvs[key];
-				}
-				else // vc are incomparable 
-				{
-					var thisTime = new Date (this.kvs[key].timestamp);
-					var otherTime = new Date (kvs[key].timestamp);
-
-					// compare timestamps 
-					if (thisTime > otherTime ) {
-						kvs[key]= this.kvs[key];
-					}
-					else 
-					{
+				else { 
+					// Check by vector clock
+					if(VectorClock.greaterThan(this.kvs[key].vc, kvs[key].vc)) {
 						this.kvs[key] = kvs[key];
+					} else if(!VectorClock.greaterThan(kvs[key].vc, this.kvs[key].vc)) { // Fallback to timestamp if incomparable
+						var thisTime = new Date (this.kvs[key].timestamp);
+						var otherTime = new Date (kvs[key].timestamp);
+
+						// compare timestamps 
+						if (otherTime > thisTime)
+							this.kvs[key] = kvs[key];
 					}
 				}
 			}
 		}
 
+		this.vc.pairwiseMax(clock);
 	}
 }
 
@@ -184,12 +181,13 @@ module.exports = function (app) {
 		node.reconcile(req.body.vc, req.body.kvs);
 		res.json({
 			vc: node.vc.clock,
-			kvs: node.store
+			kvs: node.kvs
 		});
 	});
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
+		node.vc.incrementClock();
 		if(node.hasKey(req.params.key)){
 			res.status(200).json({
 				'result': 'Success',
@@ -215,7 +213,7 @@ module.exports = function (app) {
 	});
 
 	/* Sets value for given key for KVS */
-	app.put('/keyValue-store/:key', (req, res) => {
+	app.put('/keyValue-store/:key', (req, res) => {	
 		if(req.params.key.length < 1 || req.params.key.length > 200)
 			res.json({
 				'result': 'Error',
@@ -224,16 +222,16 @@ module.exports = function (app) {
 		else {
 			var responseBody = {};
 			if(node.hasKey(req.params.key)) {
-				res.status(200);
+				res.status(201);
 				responseBody.msg = "Updated successfully";
 				if(node.setValue(req.params.key, req.body.val))
-					responseBody.replaced = "True";
+					responseBody.replaced = true;
 				else
-					responseBody.replaced = "False";
+					responseBody.replaced = false;
 			} else {
 				node.setValue(req.params.key, req.body.val);
-				res.status(201);
-				responseBody.replaced = "False";
+				res.status(200);
+				responseBody.replaced = false;
 				responseBody.msg = "Added successfully";
 			}
 			responseBody.payload = node.getPayload(req.params.key);
@@ -309,6 +307,8 @@ module.exports = function (app) {
 	/* add the new containers ip port <RemovedIPPort> to their views */
 	/* If container is already in view, return error message */
 	app.delete('/view', (req, res) => {
+		if(req.body.ip_port == process.env.IP_PORT)
+			node.vc.clock = {};
 		Promise.all(node.view().map(function (ip) {
 			if(!('forward' in req.body) && ip != process.env.IP_PORT) {
 				request({

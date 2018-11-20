@@ -6,7 +6,11 @@ var express = require('express'),
 
 
 //app.use('/keyValue-store/:key', bodyParser.json({ limit: '1mb' }))
-app.use(bodyParser.json());
+app.use(bodyParser());
+
+// app.use(bodyParser.raw()); // for parsing application/json
+// app.use(bodyParser.text()); // for parsing application/x-www-form-urlencoded
+
 
 // Error handling
 app.use(function (err, req, res, next) {
