@@ -145,12 +145,12 @@ class Node {
 			this.kvs = kvs;
 		} else {
 			// If incomparable then do on a key by key basis
-			for (var key in kvs) { 
+			for (var key in kvs) {
 				// If the kvs recieved has keys this node does not, just copy
 				if (!(key in this.kvs)) {
 					this.kvs[key] = kvs[key];
 				}
-				else { 
+				else {
 					// Check by vector clock
 					if(VectorClock.greaterThan(this.kvs[key].vc, kvs[key].vc)) {
 						this.kvs[key] = kvs[key];
@@ -158,7 +158,7 @@ class Node {
 						var thisTime = new Date (this.kvs[key].timestamp);
 						var otherTime = new Date (kvs[key].timestamp);
 
-						// compare timestamps 
+						// compare timestamps
 						if (otherTime > thisTime)
 							this.kvs[key] = kvs[key];
 					}
@@ -189,31 +189,60 @@ module.exports = function (app) {
 	app.get('/keyValue-store/:key', (req, res) => {
 		node.vc.incrementClock();
 		if(node.hasKey(req.params.key)){
-			res.status(200).json({
-				'result': 'Success',
-				'value': node.getValue(req.params.key),
-				'payload': node.getPayload(req.params.key)
-			});
-		} else {
-			res.status(404).json({
-				'result': 'Error',
-				'msg': 'Key does not exist',
-				'payload': node.getPayload(req.params.key)
-			});
-		}
+	    var updatedLoad = node.getPayload(req.params.key);
+	    var largeKey = false;
+	    if (!VectorClock.greaterThan(req.body.payload, updatedLoad)) {
+	      updatedLoad = req.body.payload;
+	      largeKey = true;
+	    }
+	    if (largeKey) {
+	       res.status(200).json({
+	        'result': 'Success',
+	        'value': node.getValue(req.params.key),
+	        'payload': updatedLoad
+	       });
+	    } else {
+	      res.status(200).json({
+	        'result': 'Success',
+	        'value': node.getValue(req.params.key),
+	        'payload': 'payload is too old; larger than key vector and something may have been written to key'
+	      });
+	    }
+	  } else {
+	    res.status(404).json({
+	      'result': 'Error',
+	      'msg': 'Key does not exist',
+	      'payload': node.getPayload(req.params.key)
+	    });
+	  }
 	});
 
 	/* GET hasKey given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
-		res.status(200).json({
-			'isExists': node.hasKey(req.params.key),
-			'result': 'Success',
-			'payload': node.getPayload(req.params.key)
-		});
+		// node.vc.incrementClock(); doesnt work yet
+		var updatedLoad = node.getPayload(req.params.key);
+	  var largeKey = false;
+	  if (!VectorClock.greaterThan(req.body.payload, updatedLoad)) {
+	    updatedLoad = req.body.payload;
+	    largeKey = true;
+	  }
+	  if (largeKey) {
+	     res.status(200).json({
+	      'isExists': node.hasKey(req.params.key),
+	      'result': 'Success',
+	      'payload': updatedLoad
+	     });
+	  } else {
+	    res.status(200).json({
+	      'isExists': node.hasKey(req.params.key),
+	      'result': 'Success',
+	      'payload': 'blocked, too old'
+	    });
+	  }
 	});
 
 	/* Sets value for given key for KVS */
-	app.put('/keyValue-store/:key', (req, res) => {	
+	app.put('/keyValue-store/:key', (req, res) => {
 		if(req.params.key.length < 1 || req.params.key.length > 200)
 			res.json({
 				'result': 'Error',
