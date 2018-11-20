@@ -75,7 +75,9 @@ class Node {
 
 	// Returns the payload
 	getPayload (key) {
-		return this.kvs[key].vc;
+		if(key in this.kvs)
+			return this.kvs[key].vc;
+		return this.vc.clock;
 	}
 
 	/* Node communication methods --------------------------- */
@@ -205,7 +207,7 @@ module.exports = function (app) {
 	});
 
 	/* Sets value for given key for KVS */
-	app.put('/keyValue-store/:key', (req, res) => {
+	app.put('/keyValue-store/:key', (req, res) => {	
 		if(req.params.key.length < 1 || req.params.key.length > 200)
 			res.json({
 				'result': 'Error',
@@ -214,16 +216,16 @@ module.exports = function (app) {
 		else {
 			var responseBody = {};
 			if(node.hasKey(req.params.key)) {
-				res.status(200);
+				res.status(201);
 				responseBody.msg = "Updated successfully";
 				if(node.setValue(req.params.key, req.body.val))
-					responseBody.replaced = "True";
+					responseBody.replaced = true;
 				else
-					responseBody.replaced = "False";
+					responseBody.replaced = false;
 			} else {
 				node.setValue(req.params.key, req.body.val);
-				res.status(201);
-				responseBody.replaced = "False";
+				res.status(200);
+				responseBody.replaced = false;
 				responseBody.msg = "Added successfully";
 			}
 			responseBody.payload = node.getPayload(req.params.key);
