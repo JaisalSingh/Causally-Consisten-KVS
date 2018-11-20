@@ -74,8 +74,11 @@ class Node {
 
 	// Returns true if key-value pair was removed
 	removeKey (key) {
+		this.vc.incrementClock();
 		if(!this.hasKey(key))
 			return false;
+		// update key clock and delete value
+		this.kvs[key].vc = Object.assign({}, this.vc.clock);
 		return delete this.kvs[key].value;
 	}
 
