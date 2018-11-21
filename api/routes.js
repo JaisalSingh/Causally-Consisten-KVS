@@ -8,15 +8,12 @@ class VectorClock {
 	}
 
 	// Returns true if a is causally dominated by b
-	static greaterThan(a, b) {
-		var result = false;
+	static greaterThanOrEqualTo(a, b) {
 		for(var ip in a) {
 			if(b[ip] < a[ip])
 				return false;
-			else if(b[ip] > a[ip])
-				result = true;
 		}
-		return result;
+		return true;
 	}
 
 	// Increments the clock for this host
@@ -144,9 +141,9 @@ class Node {
 
 	reconcile (clock, kvs) {
 		// compare vector clocks first
-		if(VectorClock.greaterThan(this.vc.clock, clock)) {
-			this.kvs = kvs;
-		} else {
+		// if(VectorClock.greaterThanOrEqualTo(this.vc.clock, clock)) {
+		// 	this.kvs = kvs;
+		// } else {
 			// If incomparable then do on a key by key basis
 			for (var key in kvs) {
 				// If the kvs recieved has keys this node does not, just copy
@@ -155,9 +152,9 @@ class Node {
 				}
 				else {
 					// Check by vector clock
-					if(VectorClock.greaterThan(this.kvs[key].vc, kvs[key].vc)) {
+					if(VectorClock.greaterThanOrEqualTo(this.kvs[key].vc, kvs[key].vc)) {
 						this.kvs[key] = kvs[key];
-					} else if(!VectorClock.greaterThan(kvs[key].vc, this.kvs[key].vc)) { // Fallback to timestamp if incomparable
+					} else if(!VectorClock.greaterThanOrEqualTo(kvs[key].vc, this.kvs[key].vc)) { // Fallback to timestamp if incomparable
 						var thisTime = new Date (this.kvs[key].timestamp);
 						var otherTime = new Date (kvs[key].timestamp);
 
@@ -167,7 +164,7 @@ class Node {
 					}
 				}
 			}
-		}
+		// }
 
 		this.vc.pairwiseMax(clock);
 	}
@@ -179,8 +176,8 @@ node = new Node(process.env.VIEW);
 module.exports = function (app) {
 
 	app.post('/gossip', (req, res) => {
-		console.log("Recieved:");
-		console.log(req.body);
+		// console.log("Recieved gossip:");
+		// console.log(req.body);
 		node.reconcile(req.body.vc, req.body.kvs);
 		res.json({
 			vc: node.vc.clock,
@@ -193,7 +190,7 @@ module.exports = function (app) {
 		node.vc.incrementClock();
 		if(node.hasKey(req.params.key)){
 			var keyClock = node.getPayload(req.params.key);
-			if (!VectorClock.greaterThan(keyClock, req.body.payload)) {
+			if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
 				node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
 				res.status(200).json({
 					'result': 'Success',
@@ -201,10 +198,10 @@ module.exports = function (app) {
 					'payload': node.vc.clock
 				});
 			} else {
-				res.status(200).json({
-					'result': 'Success',
-					'value': node.getValue(req.params.key),
-					'payload': 'payload is too old; larger than key vector and something may have been written to key'
+				res.status(400).json({
+					'result': 'Error',
+					'msg': 'Payload up to date',
+					'payload': node.getPayload(req.params.key)
 				});
 			}
 	  } else {
@@ -220,18 +217,19 @@ module.exports = function (app) {
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		node.vc.incrementClock();
 		var keyClock = node.getPayload(req.params.key);
-		if (!VectorClock.greaterThan(keyClock, req.body.payload)) {
-			node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
+		if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
+			if(node.hasKey(req.params.key))
+				node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
 			res.status(200).json({
 				'isExists': node.hasKey(req.params.key),
 				'result': 'Success',
 				'payload': node.vc.clock
 			});
 		} else {
-			res.status(200).json({
-				'isExists': node.hasKey(req.params.key),
-				'result': 'Success',
-				'payload': 'blocked, too old'
+			res.status(400).json({
+				'result': 'Error',
+				'msg': 'Payload out of date',
+				'payload': node.vc.clock
 			});
 		}
 	});
@@ -275,7 +273,7 @@ module.exports = function (app) {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'Key does not exist',
-				'payload': node.getPayload(req.params.key)
+				'payload': node.vc.clock
 			});
 		}
 	});
