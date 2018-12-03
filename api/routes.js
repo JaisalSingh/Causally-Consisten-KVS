@@ -358,4 +358,69 @@ module.exports = function (app) {
 			}
 		});
 	});
+
+	/*
+	 Shard routes -------------------------------------------------------
+	*/
+
+	// Return container's shard id
+	app.get('/shard/my_id', (req, res) => {
+		res.status(200).json({
+			'id': '<containersShardId>'
+		});
+	});
+
+	// Return a list of all shard ids in system
+	app.get('/shard/all_ids', (req, res) => {
+		res.status(200).json({
+			'result': 'Success',
+			'shard_ids': '<shard_ids>'
+		});
+	});
+
+	// Return a list of all members in the shard with id <shard_id>
+	// Each member should be represented as an ip-port address
+	app.get('/shard/members/:shard_id', (req, res) => {
+		// if valid shard_id
+			/* res.status(200).json({
+				'result': 'Success',
+				'members': node.view().join(",")
+			}); */
+		// else { (not valid shard_id)
+			/* res.status(404).json({
+				'result': 'Error',
+				'msg': 'No shard with id <shard_id>'
+			}); */
+	});
+
+	// Return the number of key-value pairs that shard is responsible for (integer)
+	app.get('shard/count/:shard_id', (req, res) => {
+		// if valid shard_id
+			/* res.status(200).json({
+				'result': 'Success',
+				'Count': '<numberOfKeys>'
+			}); */
+		// else { (not valid shard_id)
+			/* res.status(404).json({
+				'result': 'Error',
+				'msg': 'No shard with <shard_id>'
+			}); */
+	});
+
+	// Initiates a change in replica groups such that key-values are redivided
+	// across <number> groups and returns list of all shard ids
+	app.put('/shard/changeShardNumber', (req, res) => {
+		// if <number> is greater than number of nodes
+			/* res.status(400).json({
+				'result': 'Error',
+				'msg': 'Not enough nodes for <number> shards'
+			}); */
+		// if there i only 1 node in any partition as a result of redividing
+			/* res.status(400).json({
+				'result': 'Error',
+				'msg': 'Not enough nodes. <number> shards result in a
+						nonfault tolerant shard'
+			}); */
+	});
+	
 }
