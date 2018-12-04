@@ -180,6 +180,20 @@ class Node {
 
 		this.vc.pairwiseMax(clock);
 	}
+
+	// count the number of keys in the node 
+	countKeys () {
+		keyCount = 0; 
+		// iterate through the kvs 
+		for (var key in this.kvs ) {
+			// if the key exists
+			if (kvs[key] != undefined)
+			{
+				keyCount++; 
+			}
+		}
+		return keyCount; 
+	}
 }
 
 // Initializes the vector clock with the view
