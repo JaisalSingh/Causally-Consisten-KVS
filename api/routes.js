@@ -48,7 +48,9 @@ class VectorClock {
 }
 
 class Node {
-	constructor(view) {
+	constructor(view, shardCount) {
+		this.shardID;
+		this.shardList = this.createShardList(shardCount);
 		this.kvs = {};
 		this.vc = new VectorClock(view);
 		view.split(",").forEach((ip) =>
@@ -61,6 +63,22 @@ class Node {
 
 	hasKey (key) {
 		return (key in this.kvs) && (this.kvs[key].value != undefined);
+	}
+
+  // returns list of all shard IDs in system
+	getAllShardIds() {
+		var shards = [];
+		this.shardList.forEach(function(){
+			shards.push(shards.length);
+		});
+		return shards;
+	}
+
+  // initialize a node's shardList and partition
+	createShardList (shardCount) {
+		var newShardList = Array(shardCount).fill([]);
+		//distribute data across shards --> RR / Random /
+		this.shardList = newShardList;
 	}
 
 	// Returns true if the key is new
@@ -167,7 +185,7 @@ class Node {
 					if(VectorClock.greaterThanOrEqualTo(this.kvs[key].vc, kvs[key].vc)) {
 						this.kvs[key] = kvs[key];
 					} else if(VectorClock.incomparable(this.kvs[key].vc, kvs[key].vc)) { // Fallback to timestamp if incomparable
-						var thisTime = new Date (this.kvs[key].timestamp);			
+						var thisTime = new Date (this.kvs[key].timestamp);
 						var otherTime = new Date (kvs[key].timestamp);
 
 						// compare timestamps
@@ -182,8 +200,8 @@ class Node {
 	}
 }
 
-// Initializes the vector clock with the view
-node = new Node(process.env.VIEW);
+// Initializes the vector clock with the view and shard count
+node = new Node(process.env.VIEW, parseInt(process.env.S));
 
 module.exports = function (app) {
 
@@ -375,10 +393,10 @@ module.exports = function (app) {
 	 Shard routes -------------------------------------------------------
 	*/
 
-	// Return container's shard id
+	// Return container's shard id (will be set in distribution alg)
 	app.get('/shard/my_id', (req, res) => {
 		res.status(200).json({
-			'id': '<containersShardId>'
+			'id': node.shardID;
 		});
 	});
 
@@ -386,38 +404,42 @@ module.exports = function (app) {
 	app.get('/shard/all_ids', (req, res) => {
 		res.status(200).json({
 			'result': 'Success',
-			'shard_ids': '<shard_ids>'
+			'shard_ids': node.getAllShardIds();
 		});
 	});
 
 	// Return a list of all members in the shard with id <shard_id>
 	// Each member should be represented as an ip-port address
 	app.get('/shard/members/:shard_id', (req, res) => {
-		// if valid shard_id
-			/* res.status(200).json({
+		if (parseInt(req.params.shard_id) < node.shardList.length) {
+			res.status(200).json({
 				'result': 'Success',
 				'members': node.view().join(",")
-			}); */
-		// else { (not valid shard_id)
-			/* res.status(404).json({
+			});
+		}else{
+			res.status(404).json({
 				'result': 'Error',
-				'msg': 'No shard with id <shard_id>'
-			}); */
+				'msg': 'No shard with id ' + req.params.shard_id
+			});
+		});
 	});
+
 
 	// Return the number of key-value pairs that shard is responsible for (integer)
 	app.get('shard/count/:shard_id', (req, res) => {
-		// if valid shard_id
-			/* res.status(200).json({
+		if (parseInt(req.params.shard_id) < node.shardList.length) {
+			res.status(200).json({
 				'result': 'Success',
-				'Count': '<numberOfKeys>'
-			}); */
-		// else { (not valid shard_id)
-			/* res.status(404).json({
+				'Count': node.countKeys()
+			});
+		}else{
+			res.status(404).json({
 				'result': 'Error',
-				'msg': 'No shard with <shard_id>'
-			}); */
+				'msg': 'No shard with id ' + req.params.shard_id
+			});
+		});
 	});
+
 
 	// Initiates a change in replica groups such that key-values are redivided
 	// across <number> groups and returns list of all shard ids
@@ -434,5 +456,5 @@ module.exports = function (app) {
 						nonfault tolerant shard'
 			}); */
 	});
-	
+
 }
