@@ -1,4 +1,4 @@
-/* CMPS 128 Key Value Store Assignment 2 */
+/* CMPS 128 Key Value Store Assignment 4 */
 
 var request = require('request-promise');
 
@@ -14,6 +14,18 @@ class VectorClock {
 				return false;
 		}
 		return true;
+	}
+
+	// Returns true if a and b are incomparable
+	static incomparable(a, b) {
+		var aGreater = false, bGreater = false;
+		for(var ip in a) {
+			if(b[ip] < a[ip])
+				aGreater = true;
+			else if(b[ip] > a[ip])
+				bGreater = true;
+		}
+		return aGreater && bGreater;
 	}
 
 	// Increments the clock for this host
@@ -141,9 +153,9 @@ class Node {
 
 	reconcile (clock, kvs) {
 		// compare vector clocks first
-		// if(VectorClock.greaterThanOrEqualTo(this.vc.clock, clock)) {
-		// 	this.kvs = kvs;
-		// } else {
+		if(VectorClock.greaterThanOrEqualTo(this.vc.clock, clock) && !VectorClock.incomparable(this.vc.clock, clock)) {
+			this.kvs = kvs;
+		} else {
 			// If incomparable then do on a key by key basis
 			for (var key in kvs) {
 				// If the kvs recieved has keys this node does not, just copy
@@ -154,8 +166,8 @@ class Node {
 					// Check by vector clock
 					if(VectorClock.greaterThanOrEqualTo(this.kvs[key].vc, kvs[key].vc)) {
 						this.kvs[key] = kvs[key];
-					} else if(!VectorClock.greaterThanOrEqualTo(kvs[key].vc, this.kvs[key].vc)) { // Fallback to timestamp if incomparable
-						var thisTime = new Date (this.kvs[key].timestamp);
+					} else if(VectorClock.incomparable(this.kvs[key].vc, kvs[key].vc)) { // Fallback to timestamp if incomparable
+						var thisTime = new Date (this.kvs[key].timestamp);			
 						var otherTime = new Date (kvs[key].timestamp);
 
 						// compare timestamps
@@ -164,7 +176,7 @@ class Node {
 					}
 				}
 			}
-		// }
+		}
 
 		this.vc.pairwiseMax(clock);
 	}
