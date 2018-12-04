@@ -1,6 +1,7 @@
 /* CMPS 128 Key Value Store Assignment 4 */
 
 var request = require('request-promise');
+var djb2 = require('djb2');
 
 class VectorClock {
 	constructor () {
@@ -212,6 +213,14 @@ class Node {
 		}
 		return keyCount; 
 	}
+
+	// get the node associated with the shard
+	getShardNode(shard_id) {
+		// should always be something in the shard group
+		if (this.shardList[shard_id].length != 0){
+			return this.shardList[shard_id][0];
+		}
+	}
 }
 
 // Initializes the vector clock with the view and shard count
@@ -410,7 +419,7 @@ module.exports = function (app) {
 	// Return container's shard id (will be set in distribution alg)
 	app.get('/shard/my_id', (req, res) => {
 		res.status(200).json({
-			'id': node.shardID;
+			'id': node.shardID
 		});
 	});
 
@@ -418,7 +427,7 @@ module.exports = function (app) {
 	app.get('/shard/all_ids', (req, res) => {
 		res.status(200).json({
 			'result': 'Success',
-			'shard_ids': node.getAllShardIds();
+			'shard_ids': node.getAllShardIds()
 		});
 	});
 
@@ -435,23 +444,37 @@ module.exports = function (app) {
 				'result': 'Error',
 				'msg': 'No shard with id ' + req.params.shard_id
 			});
-		});
+		};
 	});
 
 
 	// Return the number of key-value pairs that shard is responsible for (integer)
 	app.get('shard/count/:shard_id', (req, res) => {
-		if (parseInt(req.params.shard_id) < node.shardList.length) {
-			res.status(200).json({
-				'result': 'Success',
-				'Count': node.countKeys()
+		var shard_id = req.params.shard_id; 
+		// only if the shard is in the node
+		if (shard_id != node.shardID){
+			var ip = node.getShardNode(shard_id);
+			request({
+				method: 'GET',
+				uri: 'http://' + ip + '/shard/count/' + shard_id
+			}, (err, res2, body) => {
+				res.send(res2);
 			});
-		}else{
-			res.status(404).json({
-				'result': 'Error',
-				'msg': 'No shard with id ' + req.params.shard_id
-			});
-		});
+		}
+		else {
+			// must be shard 0 or greater 
+			if (parseInt(shard_id) >= 0 && parseInt(shard_id) < node.shardList.length) {
+				res.status(200).json({
+					'result': 'Success',
+					'Count': node.countKeys()
+				});
+			}else{
+				res.status(404).json({
+					'result': 'Error',
+					'msg': 'No shard with id ' + shard_id
+				});
+			};
+		}
 	});
 
 
