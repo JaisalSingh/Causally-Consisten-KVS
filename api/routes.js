@@ -58,7 +58,7 @@ class Node {
 			this.addNode(ip)
 		);
 		this.createShardList(shardCount);
-		this.gossipInterval = setInterval(() => this.gossip(), 500);
+		// this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
 	/* KVS methods ------------------------------------------ */
@@ -67,19 +67,19 @@ class Node {
 		return (key in this.kvs) && (this.kvs[key].value != undefined);
 	}
 
-  // returns list of all shard IDs in system
+  	// returns list of all shard IDs in system
 	getAllShardIds() {
 		var shards = [];
 		this.shardList.forEach(function(){
 			shards.push(shards.length);
 		});
-		return shards;
+		return shards.join(",");
 	}
 
-  // initialize a node's shardList and partition
+  	// initialize a node's shardList and partition
 	createShardList (shardCount) {
 
-		clearInterval(this.gossipInterval); 
+		// clearInterval(this.gossipInterval); 
 		this.shardList = []; 
 		for (var len = 0; len < shardCount; len++)
 		{
@@ -101,7 +101,7 @@ class Node {
 		}
 		console.log('THIS IS THE SHARD LIST\n');
 		console.log(this.shardList);
-		this.gossipInterval = setInterval(() => this.gossip(), 500);
+		// this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
 	// Returns true if the key is new
@@ -245,7 +245,7 @@ class Node {
 	}
 
 	// get the shard num for the key
-	getKeyforShard(key) {
+	getShardForKey(key) {
 		return djb2(key) % this.shardList.length;
 	}
 }
@@ -267,10 +267,9 @@ module.exports = function (app) {
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
-		console.log('in the get method');
 		node.vc.incrementClock();
 		// if the key is in this shard 
-		var keyShardNum = getKeyforShard(req.params.key);
+		var keyShardNum = node.getShardForKey(req.params.key);
 		// if the shard is not on this node
 		if (keyShardNum != node.shardID){
 			var ip = node.getShardNode(keyShardNum);
@@ -279,7 +278,7 @@ module.exports = function (app) {
 				uri: 'http://' + ip + '/keyValue-store/' + req.params.key
 			}, (err, res2, body) => {
 				if (!err) {
-					res.send(res2);
+					res.status(res2.statusCode).send(body);
 				}
 			});
 		} else {
@@ -290,12 +289,14 @@ module.exports = function (app) {
 					res.status(200).json({
 						'result': 'Success',
 						'value': node.getValue(req.params.key),
+						'owner': keyShardNum,
 						'payload': node.vc.clock
 					});
 				} else {
 					res.status(400).json({
 						'result': 'Error',
 						'msg': 'Payload up to date',
+						'owner': keyShardNum,
 						'payload': node.getPayload(req.params.key)
 					});
 				}
@@ -313,7 +314,7 @@ module.exports = function (app) {
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		node.vc.incrementClock();
 		
-		var keyShardNum = getKeyforShard(req.params.key);
+		var keyShardNum = node.getShardForKey(req.params.key);
 		// if the shard is not on this node
 		if (keyShardNum != node.shardID){
 			var ip = node.getShardNode(keyShardNum);
@@ -322,7 +323,7 @@ module.exports = function (app) {
 				uri: 'http://' + ip + '/keyValue-store/search/' + req.params.key
 			}, (err, res2, body) => {
 				if (!err) {
-					res.send(res2);
+					res.status(res2.statusCode).send(body);
 				}
 			});
 		} else {
@@ -354,39 +355,69 @@ module.exports = function (app) {
 				'msg': 'Key not valid'
 			});
 		else {
-			var responseBody = {};
-			if(node.hasKey(req.params.key)) {
-				res.status(201);
-				responseBody.msg = "Updated successfully";
-				if(node.setValue(req.params.key, req.body.val))
-					responseBody.replaced = true;
-				else
-					responseBody.replaced = false;
+			var keyShardNum = node.getShardForKey(req.params.key);
+			if(keyShardNum != node.shardID) {
+				var ip = node.getShardNode(keyShardNum);
+				request({
+					method: 'PUT',
+					uri: 'http://' + ip + '/keyValue-store/' + req.params.key,
+					body: {
+						val: req.body.val
+					},
+					json: true
+				}, (err, res2, body) => {
+					if (!err) {
+						res.status(res2.statusCode).send(body);
+					}
+				});
 			} else {
-				node.setValue(req.params.key, req.body.val);
-				res.status(200);
-				responseBody.replaced = false;
-				responseBody.msg = "Added successfully";
+				var responseBody = {};
+				if(node.hasKey(req.params.key)) {
+					res.status(201);
+					responseBody.msg = "Updated successfully";
+					if(node.setValue(req.params.key, req.body.val))
+						responseBody.replaced = true;
+					else
+						responseBody.replaced = false;
+				} else {
+					node.setValue(req.params.key, req.body.val);
+					res.status(200);
+					responseBody.replaced = false;
+					responseBody.msg = "Added successfully";
+				}
+				responseBody.payload = req.body.payload;
+				res.json(responseBody);
 			}
-			responseBody.payload = req.body.payload;
-			res.json(responseBody);
 		}
 	});
 
 	/* Deletes given key-value pair from KVS */
 	app.delete('/keyValue-store/:key', (req, res) => {
-		if(node.removeKey(req.params.key)) {
-			res.status(200).json({
-				'result': 'Success',
-				'msg': 'Key deleted',
-				'payload': node.getPayload(req.params.key)
+		var keyShardNum = node.getShardForKey(req.params.key);
+		if(keyShardNum != node.shardID) {
+			var ip = node.getShardNode(keyShardNum);
+			request({
+				method: 'DELETE',
+				uri: 'http://' + ip + '/keyValue-store/' + req.params.key
+			}, (err, res2, body) => {
+				if (!err) {
+					res.status(res2.statusCode).send(body);
+				}
 			});
 		} else {
-			res.status(404).json({
-				'result': 'Error',
-				'msg': 'Key does not exist',
-				'payload': node.vc.clock
-			});
+			if(node.removeKey(req.params.key)) {
+				res.status(200).json({
+					'result': 'Success',
+					'msg': 'Key deleted',
+					'payload': node.getPayload(req.params.key)
+				});
+			} else {
+				res.status(404).json({
+					'result': 'Error',
+					'msg': 'Key does not exist',
+					'payload': node.vc.clock
+				});
+			}
 		}
 	});
 
@@ -493,12 +524,13 @@ module.exports = function (app) {
 	// Return a list of all members in the shard with id <shard_id>
 	// Each member should be represented as an ip-port address
 	app.get('/shard/members/:shard_id', (req, res) => {
-		if (parseInt(req.params.shard_id) < node.shardList.length) {
+		var shardID = parseInt(req.params.shard_id);
+		if (shardID >= 0 && shardID < node.shardList.length) {
 			res.status(200).json({
 				'result': 'Success',
-				'members': node.view().join(",")
+				'members': node.shardList[req.params.shard_id].join(",")
 			});
-		}else{
+		} else {
 			res.status(404).json({
 				'result': 'Error',
 				'msg': 'No shard with id ' + req.params.shard_id

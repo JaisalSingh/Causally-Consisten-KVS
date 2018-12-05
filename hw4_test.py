@@ -9,7 +9,7 @@ import docker_control
 
 import io
 
-dockerBuildTag = "testing" #put the tag for your docker build here
+dockerBuildTag = "grslin/gjjr_kvs" #put the tag for your docker build here
 
 hostIp = "localhost"
 
@@ -19,9 +19,9 @@ needSudo = False # obviously if you need sudo, set this to True
 
 port_prefix = "808"
 
-networkName = "mynetwork" # the name of the network you created
+networkName = "asgnet" # the name of the network you created
 
-networkIpPrefix = "192.168.0." # should be everything up to the last period of the subnet you specified when you
+networkIpPrefix = "10.0.0." # should be everything up to the last period of the subnet you specified when you
 # created your network
 
 propogationTime = 3 #sets number of seconds we sleep after certain actions to let data propagate through your system
@@ -88,9 +88,11 @@ def viewNetwork(ipPort):
     return requests.get( 'http://%s/view'%str(ipPort) )
 
 def getShardId(ipPort):
+    print('http://%s/shard/my_id'%str(ipPort))
     return requests.get( 'http://%s/shard/my_id'%str(ipPort) )
 
 def getAllShardIds(ipPort):
+    print('http://%s/shard/all_ids'%str(ipPort))
     return requests.get( 'http://%s/shard/all_ids'%str(ipPort) )
 
 def getMembers(ipPort, ID):
@@ -114,11 +116,11 @@ class TestHW4(unittest.TestCase):
             if " " in container["containerID"]:
                 self.assertTrue(False, "There is likely a problem in the settings of your ip addresses or network.")
 
-        dc.prepBlockade([instance["containerID"] for instance in self.view])
+        # dc.prepBlockade([instance["containerID"] for instance in self.view])
 
     def tearDown(self):
         dc.cleanUpDockerContainer()
-        dc.tearDownBlockade()
+        # dc.tearDownBlockade()
 
     def getPayload(self, ipPort, key):
         response = checkKey(ipPort, key, {})
@@ -291,7 +293,7 @@ class TestHW4(unittest.TestCase):
 
         shardView = self.getShardView(ipPort)
         for shard in shardView:
-            length = len(shard)
+            length = len(shardView[shard])
             self.assertTrue(length > 1)
 
     # number of shards should not change
