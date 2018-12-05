@@ -243,6 +243,11 @@ class Node {
 			return this.shardList[shard_id][0];
 		}
 	}
+
+	// get the shard num for the key
+	getKeyforShard(key) {
+		return djb2(key) % this.shardList.length;
+	}
 }
 
 // Initializes the vector clock with the view and shard count
@@ -265,45 +270,62 @@ module.exports = function (app) {
 		console.log('in the get method');
 		node.vc.incrementClock();
 		// if the key is in this shard 
-
-
-		if(node.hasKey(req.params.key)){
-			var keyClock = node.getPayload(req.params.key);
-			if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
-				node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
-				res.status(200).json({
-					'result': 'Success',
-					'value': node.getValue(req.params.key),
-					'payload': node.vc.clock
-				});
-			} else {
-				res.status(400).json({
-					'result': 'Error',
-					'msg': 'Payload up to date',
-					'payload': node.getPayload(req.params.key)
-				});
-			}
-	  } else {
-	    res.status(404).json({
-	      'result': 'Error',
-	      'msg': 'Key does not exist',
-	      'payload': node.getPayload(req.params.key)
-	    });
-	  }
+		var keyShardNum = getKeyforShard(req.params.key);
+		// if the shard is not on this node
+		if (keyShardNum != node.shardID){
+			var ip = node.getShardNode(keyShardNum);
+			request({
+				method: 'GET',
+				uri: 'http://' + ip + '/keyValue-store/' + req.params.key
+			}, (err, res2, body) => {
+				if (!err) {
+					res.send(res2);
+				}
+			});
+		} else {
+			if(node.hasKey(req.params.key)){
+				var keyClock = node.getPayload(req.params.key);
+				if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
+					node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
+					res.status(200).json({
+						'result': 'Success',
+						'value': node.getValue(req.params.key),
+						'payload': node.vc.clock
+					});
+				} else {
+					res.status(400).json({
+						'result': 'Error',
+						'msg': 'Payload up to date',
+						'payload': node.getPayload(req.params.key)
+					});
+				}
+		  	} else {
+			    res.status(404).json({
+			      'result': 'Error',
+			      'msg': 'Key does not exist',
+			      'payload': node.getPayload(req.params.key)
+			    });
+		  	}
+		}
 	});
 
 	/* GET hasKey given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		node.vc.incrementClock();
-		console.log("THIS IS THE HASH OF THE KEY!!!! \n\n\n");
-		console.log( djb2(req.params.key) % node.shardList.length);
-		var keyShardNum = djb2(req.params.key) % node.shardList.length;
 		
+		var keyShardNum = getKeyforShard(req.params.key);
 		// if the shard is not on this node
 		if (keyShardNum != node.shardID){
-
-		}
-		else {
+			var ip = node.getShardNode(keyShardNum);
+			request({
+				method: 'GET',
+				uri: 'http://' + ip + '/keyValue-store/search/' + req.params.key
+			}, (err, res2, body) => {
+				if (!err) {
+					res.send(res2);
+				}
+			});
+		} else {
 			var keyClock = node.getPayload(req.params.key);
 			if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
 				if(node.hasKey(req.params.key))
@@ -311,6 +333,7 @@ module.exports = function (app) {
 				res.status(200).json({
 					'isExists': node.hasKey(req.params.key),
 					'result': 'Success',
+					'owner': keyShardNum,
 					'payload': node.vc.clock
 				});
 			} else {
