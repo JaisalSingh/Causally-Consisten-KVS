@@ -51,12 +51,13 @@ class VectorClock {
 class Node {
 	constructor(view, shardCount) {
 		this.shardID;
-		this.shardList = this.createShardList(shardCount);
+		this.shardList;
 		this.kvs = {};
 		this.vc = new VectorClock(view);
 		view.split(",").forEach((ip) =>
 			this.addNode(ip)
 		);
+		this.createShardList(shardCount);
 		this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
@@ -77,9 +78,31 @@ class Node {
 
   // initialize a node's shardList and partition
 	createShardList (shardCount) {
-		var newShardList = Array(shardCount).fill([]);
+
+		clearInterval(this.gossipInterval); 
+		this.shardList = []; 
+		for (var len = 0; len < shardCount; len++)
+		{
+			this.shardList.push([]);
+		}
+
 		//distribute data across shards --> RR / Random /
-		this.shardList = newShardList;
+		var count =0;
+		for (var server in this.vc.clock)
+		{
+			console.log(this.shardList);
+			var index = count % shardCount;
+			//push the node into the array for the shard group
+			this.shardList[index].push(server); 
+			count++;
+			if (server == process.env.IP_PORT)
+			{
+				this.shardID = index; 
+			}
+		}
+		console.log('THIS IS THE SHARD LIST\n');
+		console.log(this.shardList);
+		this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
 	// Returns true if the key is new
@@ -163,7 +186,7 @@ class Node {
 
 	findRandomNode () {
 		/* Collect IPs of other nodes */
-		var ipTable = this.view().filter(function (value) {
+		var ipTable = this.shardList[this.shardID].filter(function (value) {
 			return value != process.env.IP_PORT;
 		});
 
@@ -240,7 +263,11 @@ module.exports = function (app) {
 
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
+		console.log('in the get method');
 		node.vc.incrementClock();
+		// if the key is in this shard 
+
+
 		if(node.hasKey(req.params.key)){
 			var keyClock = node.getPayload(req.params.key);
 			if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
@@ -269,21 +296,31 @@ module.exports = function (app) {
 	/* GET hasKey given key method --> returns true if KVS contains the given key */
 	app.get('/keyValue-store/search/:key', (req, res) => {
 		node.vc.incrementClock();
-		var keyClock = node.getPayload(req.params.key);
-		if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
-			if(node.hasKey(req.params.key))
-				node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
-			res.status(200).json({
-				'isExists': node.hasKey(req.params.key),
-				'result': 'Success',
-				'payload': node.vc.clock
-			});
-		} else {
-			res.status(400).json({
-				'result': 'Error',
-				'msg': 'Payload out of date',
-				'payload': node.vc.clock
-			});
+		console.log("THIS IS THE HASH OF THE KEY!!!! \n\n\n");
+		console.log( djb2(req.params.key) % node.shardList.length);
+		var keyShardNum = djb2(req.params.key) % node.shardList.length;
+		
+		// if the shard is not on this node
+		if (keyShardNum != node.shardID){
+
+		}
+		else {
+			var keyClock = node.getPayload(req.params.key);
+			if (VectorClock.greaterThanOrEqualTo(req.body.payload, keyClock)) {
+				if(node.hasKey(req.params.key))
+					node.kvs[req.params.key].vc = Object.assign({}, node.vc.clock);
+				res.status(200).json({
+					'isExists': node.hasKey(req.params.key),
+					'result': 'Success',
+					'payload': node.vc.clock
+				});
+			} else {
+				res.status(400).json({
+					'result': 'Error',
+					'msg': 'Payload out of date',
+					'payload': node.vc.clock
+				});
+			}
 		}
 	});
 
