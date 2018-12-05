@@ -87,10 +87,9 @@ class Node {
 		}
 
 		//distribute data across shards --> RR / Random /
-		var count =0;
+		var count = 0;
 		for (var server in this.vc.clock)
 		{
-			console.log(this.shardList);
 			var index = count % shardCount;
 			//push the node into the array for the shard group
 			this.shardList[index].push(server); 
