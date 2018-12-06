@@ -59,6 +59,7 @@ class Node {
 		);
 		this.createShardList(shardCount);
 		// this.gossipInterval = setInterval(() => this.gossip(), 500);
+		// this.startGossip();
 	}
 
 	/* KVS methods ------------------------------------------ */
@@ -79,7 +80,7 @@ class Node {
   	// initialize a node's shardList and partition
 	createShardList (shardCount) {
 
-		// clearInterval(this.gossipInterval); 
+		// this.stopGossip();
 		this.shardList = []; 
 		for (var len = 0; len < shardCount; len++)
 		{
@@ -101,7 +102,7 @@ class Node {
 		}
 		console.log('THIS IS THE SHARD LIST\n');
 		console.log(this.shardList);
-		// this.gossipInterval = setInterval(() => this.gossip(), 500);
+		// this.startGossip();
 	}
 
 	// Returns true if the key is new
@@ -248,12 +249,72 @@ class Node {
 	getShardForKey(key) {
 		return djb2(key) % this.shardList.length;
 	}
+
+
+	// stop gossip
+	stopGossip() {
+		clearInterval(this.gossipInterval);
+	}
+
+	// starts gossip every 500 ms
+	startGossip() {
+		this.gossipInterval = setInterval(() => this.gossip(), 500);
+	}
+
+	// do AFTER changing node groups
+	// redistribute keys to be in the appropriate shard 
+	redistributeKeys() {
+		// go through all the keys and rehash them
+		for (key in this.kvs) {
+			var shardNum = this.getShardForKey(key); 
+
+			// if the shard isn't in the node group it's supposed to be in 
+			if (this.shardID != shardNum){
+				// transfer key 
+				var ip = this.getShardNode(shardNum);
+				request({
+					method: 'PUT',
+					uri: 'http://' + ip + '/transferkey/' + key,
+					body: {
+						value: this.kvs[key]
+					},
+					json: true
+				}, (err, res2, body) => {
+					if (!err) {
+						// remove key from this node 
+						delete (this.kvs[key]);
+					}
+				});
+			}
+		}
+	}
+
 }
 
 // Initializes the vector clock with the view and shard count
 node = new Node(process.env.VIEW, parseInt(process.env.S));
 
 module.exports = function (app) {
+
+	// method to transfer key to another shard group
+	app.put('/transferkey/:key', (req, res) => { 
+		var key = req.params.key;
+		var aKey = req.body.value;
+		var currentVC = node.getPayload(key);
+
+		// if the key is in the kvs and the new vc is older then replace
+		if (node.hasKey(key) && VectorClock.greaterThanOrEqualTo(currentVC, aKey.vc)) {
+			node.kvs[key] = aKey; 
+		// node doesn't have the key at all 
+		} else if (!(node.hasKey(key))) {
+			node.kvs[key] = akey; 
+		}
+
+		// send the response back
+		res.json({
+			'result': 'Success'
+		});
+	})
 
 	app.post('/gossip', (req, res) => {
 		// console.log("Recieved gossip:");
@@ -454,6 +515,9 @@ module.exports = function (app) {
 		})).then( function (values) {
 			// It's not ideal but assumes that adding was successful for the other nodes as well
 			if(node.addNode(req.body.ip_port)) {
+				// repopulate the shard list 
+				node.createShardList(node.shardList.length);
+				console.log(node.shardList);
 				res.status(200).json({
 					'result': 'Success',
 					'msg': 'Successfully added ' + req.body.ip_port + ' to view'
@@ -551,8 +615,7 @@ module.exports = function (app) {
 			}, (err, res2, body) => {
 				res.send(res2);
 			});
-		}
-		else {
+		} else {
 			// must be shard 0 or greater 
 			if (parseInt(shard_id) >= 0 && parseInt(shard_id) < node.shardList.length) {
 				res.status(200).json({
@@ -573,6 +636,16 @@ module.exports = function (app) {
 	// across <number> groups and returns list of all shard ids
 	app.put('/shard/changeShardNumber', (req, res) => {
 		// if <number> is greater than number of nodes
+		// shardNum = parseInt(req.body.num); 
+		// if (2 * shardNum  <= node.view().length){
+			// stop gossip while reshuffling nodes
+			// node.stopGossip(); 
+			// TODO: 
+			// NEED TO BROADCAST TO ALL OTHER NODES 
+			// node.broadcastChange()?
+			// node.redistributeKeys()?
+		// }
+
 			/* res.status(400).json({
 				'result': 'Error',
 				'msg': 'Not enough nodes for <number> shards'
