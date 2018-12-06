@@ -288,7 +288,6 @@ class Node {
 			}
 		}
 	}
-
 }
 
 // Initializes the vector clock with the view and shard count
@@ -636,26 +635,48 @@ module.exports = function (app) {
 	// across <number> groups and returns list of all shard ids
 	app.put('/shard/changeShardNumber', (req, res) => {
 		// if <number> is greater than number of nodes
-		// shardNum = parseInt(req.body.num); 
-		// if (2 * shardNum  <= node.view().length){
+		var shardNum = parseInt(req.body.num); 
+		if (2 * shardNum  <= node.view().length){
 			// stop gossip while reshuffling nodes
-			// node.stopGossip(); 
+			node.stopGossip(); 
+			
 			// TODO: 
 			// NEED TO BROADCAST TO ALL OTHER NODES 
-			// node.broadcastChange()?
-			// node.redistributeKeys()?
-		// }
+			// node.broadcastShardCount(shardNum)?
 
-			/* res.status(400).json({
+			Promise.all(node.view().map(function (ip) {
+				if(!('forward' in req.body) && ip != process.env.IP_PORT) {
+					request({
+						method: 'PUT',
+						uri: 'http://' + ip + '/shard/changeShardNumber',
+						body: {
+							forward: false,
+							shardCount: shardNum
+						},
+						json: true
+					});
+				}
+			})).then( function (values) {
+				node.createShardList(shardNum); // shuffle the nodes into the right shard groups
+				res.status(200).json({
+					'result': 'Success',
+					'shard_ids': node.getAllShardIds()
+				})
+				node.redistributeKeys();
+			});		
+			
+		} else {
+
+			res.status(400).json({
 				'result': 'Error',
 				'msg': 'Not enough nodes for <number> shards'
-			}); */
-		// if there i only 1 node in any partition as a result of redividing
-			/* res.status(400).json({
+			});
+			// if there i only 1 node in any partition as a result of redividing
+			res.status(400).json({
 				'result': 'Error',
-				'msg': 'Not enough nodes. <number> shards result in a
-						nonfault tolerant shard'
-			}); */
+				'msg': 'Not enough nodes. <number> shards result in a nonfault tolerant shard'
+			});
+		}
 	});
 
 }
