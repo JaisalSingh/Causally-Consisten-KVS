@@ -164,19 +164,20 @@ class Node {
 	// Removes a node from the view
 	// Returns false if node doesn't already exist
 	removeNode (ip) {
+		console.log("Trying to delete", ip);
 		if(!ip in this.vc.clock)
 			return false;
 		delete this.vc.clock[ip];
-		
+
 		// find shard of node to delete
 		var shardOfNode;
-		for(var shard in this.shardList) {
+		this.shardList.forEach(function(shard) {
+			console.log(shard);
 			if(shard.indexOf(ip) != -1) {
 				shardOfNode = shard;
-				break;
 			}
-		}
-		delete shardOfNode[shardOfNode.indexOf(ip)];
+		});
+		shardOfNode.splice(shardOfNode.indexOf(ip), 1);
 
 		if(shardOfNode.length < 2) {
 			var shardNum = node.shardList.length-1;
@@ -562,8 +563,7 @@ module.exports = function (app) {
 	/* If container is already in view, return error message */
 	app.delete('/view', (req, res) => {
 		if(req.body.ip_port == process.env.IP_PORT)
-			node.shardList = [];
-		
+			node.stopGossip();
 		Promise.all(node.view().map(function (ip) {
 			if(!('forward' in req.body) && ip != process.env.IP_PORT) {
 				request({
@@ -662,6 +662,7 @@ module.exports = function (app) {
 	// across <number> groups and returns list of all shard ids
 	app.put('/shard/changeShardNumber', (req, res) => {
 		var shardNum = parseInt(req.body.num); 
+		console.log(shardNum + "\n");
 		
 		if(node.view().length == 1 && shardNum > 1) {
 			res.status(400).json({
@@ -671,6 +672,7 @@ module.exports = function (app) {
 		} else if (2 * shardNum <= node.view().length){ // Check to see if fault tolerance can be upheld
 			// stop gossip while reshuffling nodes
 			node.stopGossip(); 
+			console.log("gossip stopped and inside IF ELSE");
 
 			Promise.all(node.view().map(function (ip) {
 				if(!('forward' in req.body) && ip != process.env.IP_PORT) {
