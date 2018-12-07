@@ -1,4 +1,9 @@
 /* CMPS 128 Key Value Store Assignment 4 */
+// TODO
+// How to resolve system vector clocks on shard changes
+// Connection error handling
+// Rebalance on deleting nodes
+// Casual consistency concerns/new message
 
 var request = require('request-promise');
 var djb2 = require('djb2');
@@ -58,8 +63,7 @@ class Node {
 			this.addNode(ip)
 		);
 		this.createShardList(shardCount);
-		// this.gossipInterval = setInterval(() => this.gossip(), 500);
-		// this.startGossip();
+		this.startGossip();
 	}
 
 	/* KVS methods ------------------------------------------ */
@@ -79,30 +83,32 @@ class Node {
 
   	// initialize a node's shardList and partition
 	createShardList (shardCount) {
+		var gossipWasActive = this.gossipInterval;
+		this.stopGossip();
 
-		// this.stopGossip();
 		this.shardList = []; 
-		for (var len = 0; len < shardCount; len++)
-		{
+		for (var len = 0; len < shardCount; len++) {
 			this.shardList.push([]);
 		}
 
-		//distribute data across shards --> RR / Random /
+		// Distribute nodes across shards round robin style
 		var count = 0;
-		for (var server in this.vc.clock)
-		{
+		for (var server in this.vc.clock) {
 			var index = count % shardCount;
-			//push the node into the array for the shard group
+			// Push the node into the array for the shard group
 			this.shardList[index].push(server); 
-			count++;
-			if (server == process.env.IP_PORT)
-			{
+			if (server == process.env.IP_PORT) {
 				this.shardID = index; 
 			}
+			count++;
 		}
 		console.log('THIS IS THE SHARD LIST\n');
 		console.log(this.shardList);
-		// this.startGossip();
+
+		// Start gossip again if it was active at function call
+		if(gossipWasActive) {
+			this.startGossip();
+		}
 	}
 
 	// Returns true if the key is new
@@ -161,6 +167,29 @@ class Node {
 		if(!ip in this.vc.clock)
 			return false;
 		delete this.vc.clock[ip];
+		
+		// find shard of node to delete
+		var shardOfNode;
+		for(var shard in this.shardList) {
+			if(shard.indexOf(ip) != -1) {
+				shardOfNode = shard;
+				break;
+			}
+		}
+		delete shardOfNode[shardOfNode.indexOf(ip)];
+
+		if(shardOfNode.length < 2) {
+			var shardNum = node.shardList.length-1;
+			request({
+				method: 'PUT',
+				uri: 'http://' + process.env.IP_PORT + '/shard/changeShardNumber',
+				body: {
+					forward: false,
+					num: shardNum
+				},
+				json: true
+			});
+		}
 		return true;
 	}
 
@@ -178,7 +207,6 @@ class Node {
 				if(!err) {
 					this.kvs = body.kvs;
 					this.vc.copyClock(body.vc);
-					// this.vc.clock = body.vc;
 				}
 			}
 		);
@@ -203,8 +231,7 @@ class Node {
 				// If the kvs recieved has keys this node does not, just copy
 				if (!(key in this.kvs)) {
 					this.kvs[key] = kvs[key];
-				}
-				else {
+				} else {
 					// Check by vector clock
 					if(VectorClock.greaterThanOrEqualTo(this.kvs[key].vc, kvs[key].vc)) {
 						this.kvs[key] = kvs[key];
@@ -229,8 +256,7 @@ class Node {
 		// iterate through the kvs 
 		for (var key in this.kvs ) {
 			// if the key exists
-			if (kvs[key] != undefined)
-			{
+			if (kvs[key] != undefined) {
 				keyCount++; 
 			}
 		}
@@ -250,10 +276,10 @@ class Node {
 		return djb2(key) % this.shardList.length;
 	}
 
-
 	// stop gossip
 	stopGossip() {
 		clearInterval(this.gossipInterval);
+		this.gossipInterval = null;
 	}
 
 	// starts gossip every 500 ms
@@ -265,7 +291,7 @@ class Node {
 	// redistribute keys to be in the appropriate shard 
 	redistributeKeys() {
 		// go through all the keys and rehash them
-		for (key in this.kvs) {
+		for (var key in this.kvs) {
 			var shardNum = this.getShardForKey(key); 
 
 			// if the shard isn't in the node group it's supposed to be in 
@@ -279,10 +305,10 @@ class Node {
 						value: this.kvs[key]
 					},
 					json: true
-				}, (err, res2, body) => {
+				}, (err, res, body) => {
 					if (!err) {
 						// remove key from this node 
-						delete (this.kvs[key]);
+						delete this.kvs[key];
 					}
 				});
 			}
@@ -536,7 +562,8 @@ module.exports = function (app) {
 	/* If container is already in view, return error message */
 	app.delete('/view', (req, res) => {
 		if(req.body.ip_port == process.env.IP_PORT)
-			node.vc.clock = {};
+			node.shardList = [];
+		
 		Promise.all(node.view().map(function (ip) {
 			if(!('forward' in req.body) && ip != process.env.IP_PORT) {
 				request({
@@ -634,15 +661,16 @@ module.exports = function (app) {
 	// Initiates a change in replica groups such that key-values are redivided
 	// across <number> groups and returns list of all shard ids
 	app.put('/shard/changeShardNumber', (req, res) => {
-		// if <number> is greater than number of nodes
 		var shardNum = parseInt(req.body.num); 
-		if (2 * shardNum  <= node.view().length){
+		
+		if(node.view().length == 1 && shardNum > 1) {
+			res.status(400).json({
+				'result': 'Error',
+				'msg': 'Not enough nodes for ' + shardNum + ' shards'
+			});
+		} else if (2 * shardNum <= node.view().length){ // Check to see if fault tolerance can be upheld
 			// stop gossip while reshuffling nodes
 			node.stopGossip(); 
-			
-			// TODO: 
-			// NEED TO BROADCAST TO ALL OTHER NODES 
-			// node.broadcastShardCount(shardNum)?
 
 			Promise.all(node.view().map(function (ip) {
 				if(!('forward' in req.body) && ip != process.env.IP_PORT) {
@@ -651,7 +679,7 @@ module.exports = function (app) {
 						uri: 'http://' + ip + '/shard/changeShardNumber',
 						body: {
 							forward: false,
-							shardCount: shardNum
+							num: shardNum
 						},
 						json: true
 					});
@@ -661,20 +689,14 @@ module.exports = function (app) {
 				res.status(200).json({
 					'result': 'Success',
 					'shard_ids': node.getAllShardIds()
-				})
+				});
 				node.redistributeKeys();
+				node.startGossip();
 			});		
-			
 		} else {
-
 			res.status(400).json({
 				'result': 'Error',
-				'msg': 'Not enough nodes for <number> shards'
-			});
-			// if there i only 1 node in any partition as a result of redividing
-			res.status(400).json({
-				'result': 'Error',
-				'msg': 'Not enough nodes. <number> shards result in a nonfault tolerant shard'
+				'msg': 'Not enough nodes. ' + shardNum + ' shards result in a nonfault tolerant shard'
 			});
 		}
 	});
