@@ -276,12 +276,14 @@ class Node {
 
 	// stop gossip
 	stopGossip() {
+		console.log("Gossip turning off");
 		clearInterval(this.gossipInterval);
 		this.gossipInterval = null;
 	}
 
 	// starts gossip every 500 ms
 	startGossip() {
+		console.log("Gossip turning on");
 		this.gossipInterval = setInterval(() => this.gossip(), 500);
 	}
 
@@ -294,6 +296,7 @@ class Node {
 
 			// if the shard isn't in the node group it's supposed to be in 
 			if (this.shardID != shardNum){
+				console.log(key, "belongs in", shardNum);
 				// transfer key 
 				var ip = this.getShardNode(shardNum);
 				request({
@@ -306,7 +309,8 @@ class Node {
 				}, (err, res, body) => {
 					if (!err) {
 						// remove key from this node 
-						delete this.kvs[key];
+						console.log("Deleting", body.key);
+						delete this.kvs[body.key];
 					}
 				});
 			}
@@ -330,12 +334,13 @@ module.exports = function (app) {
 			node.kvs[key] = aKey; 
 		// node doesn't have the key at all 
 		} else if (!(node.hasKey(key))) {
-			node.kvs[key] = akey; 
+			node.kvs[key] = aKey; 
 		}
 
 		// send the response back
 		res.json({
-			'result': 'Success'
+			'result': 'Success',
+			'key': key
 		});
 	})
 
@@ -355,7 +360,7 @@ module.exports = function (app) {
 
 	app.get('/checkKeyHash/:key', (req, res) => {
 		res.json({
-			shardNum: node.getShardForKey(req.params.key)
+			shardNum: Math.abs(djb2(req.params.key) % req.body.shardCount)
 		});
 	});
 
