@@ -88,11 +88,9 @@ def viewNetwork(ipPort):
     return requests.get( 'http://%s/view'%str(ipPort) )
 
 def getShardId(ipPort):
-    print('http://%s/shard/my_id'%str(ipPort))
     return requests.get( 'http://%s/shard/my_id'%str(ipPort) )
 
 def getAllShardIds(ipPort):
-    print('http://%s/shard/all_ids'%str(ipPort))
     return requests.get( 'http://%s/shard/all_ids'%str(ipPort) )
 
 def getMembers(ipPort, ID):

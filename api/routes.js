@@ -4,6 +4,7 @@
 // Connection error handling
 // Rebalance on deleting nodes
 // Casual consistency concerns/new message
+// For forwarding requests, check payloads etc
 
 var request = require('request-promise');
 var djb2 = require('djb2');
@@ -102,8 +103,6 @@ class Node {
 			}
 			count++;
 		}
-		console.log('THIS IS THE SHARD LIST\n');
-		console.log(this.shardList);
 
 		// Start gossip again if it was active at function call
 		if(gossipWasActive) {
@@ -164,7 +163,6 @@ class Node {
 	// Removes a node from the view
 	// Returns false if node doesn't already exist
 	removeNode (ip) {
-		console.log("Trying to delete", ip);
 		if(!ip in this.vc.clock)
 			return false;
 		delete this.vc.clock[ip];
@@ -172,7 +170,6 @@ class Node {
 		// find shard of node to delete
 		var shardOfNode;
 		this.shardList.forEach(function(shard) {
-			console.log(shard);
 			if(shard.indexOf(ip) != -1) {
 				shardOfNode = shard;
 			}
@@ -253,11 +250,11 @@ class Node {
 
 	// count the number of keys in the node 
 	countKeys () {
-		keyCount = 0; 
+		var keyCount = 0; 
 		// iterate through the kvs 
 		for (var key in this.kvs ) {
 			// if the key exists
-			if (kvs[key] != undefined) {
+			if (this.kvs[key].value != undefined) {
 				keyCount++; 
 			}
 		}
@@ -274,7 +271,7 @@ class Node {
 
 	// get the shard num for the key
 	getShardForKey(key) {
-		return djb2(key) % this.shardList.length;
+		return Math.abs(djb2(key) % this.shardList.length);
 	}
 
 	// stop gossip
@@ -352,11 +349,22 @@ module.exports = function (app) {
 		});
 	});
 
+	app.get('/keyValue-store', (req, res) => {
+		res.send(node.kvs);
+	});
+
+	app.get('/checkKeyHash/:key', (req, res) => {
+		res.json({
+			shardNum: node.getShardForKey(req.params.key)
+		});
+	});
+
 	/* GET getValue given key method --> returns value for given key */
 	app.get('/keyValue-store/:key', (req, res) => {
 		node.vc.incrementClock();
 		// if the key is in this shard 
 		var keyShardNum = node.getShardForKey(req.params.key);
+		console.log("Received a request for", req.params.key, "which should be in shard", keyShardNum);
 		// if the shard is not on this node
 		if (keyShardNum != node.shardID){
 			var ip = node.getShardNode(keyShardNum);
@@ -402,6 +410,7 @@ module.exports = function (app) {
 		node.vc.incrementClock();
 		
 		var keyShardNum = node.getShardForKey(req.params.key);
+		console.log("Looking for key", req.params.key, "which should be in shard", keyShardNum); 
 		// if the shard is not on this node
 		if (keyShardNum != node.shardID){
 			var ip = node.getShardNode(keyShardNum);
@@ -443,13 +452,16 @@ module.exports = function (app) {
 			});
 		else {
 			var keyShardNum = node.getShardForKey(req.params.key);
+			console.log("Adding {", req.params.key, req.body.val, "}");
+			console.log("Which should shard to", keyShardNum);
 			if(keyShardNum != node.shardID) {
 				var ip = node.getShardNode(keyShardNum);
 				request({
 					method: 'PUT',
 					uri: 'http://' + ip + '/keyValue-store/' + req.params.key,
 					body: {
-						val: req.body.val
+						val: req.body.val,
+						payload: req.body.payload
 					},
 					json: true
 				}, (err, res2, body) => {
@@ -481,6 +493,7 @@ module.exports = function (app) {
 	/* Deletes given key-value pair from KVS */
 	app.delete('/keyValue-store/:key', (req, res) => {
 		var keyShardNum = node.getShardForKey(req.params.key);
+		console.log("Deleting", req.params.key, "which should be in shard", keyShardNum);
 		if(keyShardNum != node.shardID) {
 			var ip = node.getShardNode(keyShardNum);
 			request({
@@ -543,7 +556,6 @@ module.exports = function (app) {
 			if(node.addNode(req.body.ip_port)) {
 				// repopulate the shard list 
 				node.createShardList(node.shardList.length);
-				console.log(node.shardList);
 				res.status(200).json({
 					'result': 'Success',
 					'msg': 'Successfully added ' + req.body.ip_port + ' to view'
@@ -630,7 +642,7 @@ module.exports = function (app) {
 
 
 	// Return the number of key-value pairs that shard is responsible for (integer)
-	app.get('shard/count/:shard_id', (req, res) => {
+	app.get('/shard/count/:shard_id', (req, res) => {
 		var shard_id = req.params.shard_id; 
 		// only if the shard is in the node
 		if (shard_id != node.shardID){
@@ -639,7 +651,7 @@ module.exports = function (app) {
 				method: 'GET',
 				uri: 'http://' + ip + '/shard/count/' + shard_id
 			}, (err, res2, body) => {
-				res.send(res2);
+				res.status(res2.statusCode).send(body);
 			});
 		} else {
 			// must be shard 0 or greater 
@@ -661,8 +673,7 @@ module.exports = function (app) {
 	// Initiates a change in replica groups such that key-values are redivided
 	// across <number> groups and returns list of all shard ids
 	app.put('/shard/changeShardNumber', (req, res) => {
-		var shardNum = parseInt(req.body.num); 
-		console.log(shardNum + "\n");
+		var shardNum = parseInt(req.body.num);
 		
 		if(node.view().length == 1 && shardNum > 1) {
 			res.status(400).json({
@@ -672,7 +683,6 @@ module.exports = function (app) {
 		} else if (2 * shardNum <= node.view().length){ // Check to see if fault tolerance can be upheld
 			// stop gossip while reshuffling nodes
 			node.stopGossip(); 
-			console.log("gossip stopped and inside IF ELSE");
 
 			Promise.all(node.view().map(function (ip) {
 				if(!('forward' in req.body) && ip != process.env.IP_PORT) {
